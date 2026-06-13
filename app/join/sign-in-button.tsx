@@ -50,16 +50,34 @@ export function SignInButton({ inviteCode }: SignInButtonProps) {
     setLoading(true);
     setError(null);
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
+
+    let { error: signInErr } = await supabase.auth.signInWithPassword({
       email: "test@fantasywc.com",
       password: "testpass123",
     });
-    if (error) {
-      // Try sign up if login fails
-      await supabase.auth.signUp({ email: "test@fantasywc.com", password: "testpass123" });
-      await supabase.auth.signInWithPassword({ email: "test@fantasywc.com", password: "testpass123" });
+
+    if (signInErr) {
+      const { error: signUpErr } = await supabase.auth.signUp({
+        email: "test@fantasywc.com",
+        password: "testpass123",
+      });
+      if (signUpErr) {
+        setError(`Test login failed: ${signUpErr.message}`);
+        setLoading(false);
+        return;
+      }
+      const { error: signInErr2 } = await supabase.auth.signInWithPassword({
+        email: "test@fantasywc.com",
+        password: "testpass123",
+      });
+      if (signInErr2) {
+        setError(`Test login failed: ${signInErr2.message}`);
+        setLoading(false);
+        return;
+      }
     }
-    router.push(`/auth/callback-client?invite=${inviteCode}`);
+
+    router.push("/");
   };
 
   return (
