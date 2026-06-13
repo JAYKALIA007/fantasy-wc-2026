@@ -1,26 +1,69 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Navy palette */
+  --n0: #0e1726;
+  --n1: #162032;
+  --n2: #1d2d44;
+  --n3: #263453;
+  --n4: #3a4f68;
+  --n5: #566278;
+  --n6: #8395aa;
+  --n7: #b3c1cf;
+  --n8: #d6dfe8;
+  --n9: #eef1f6;
+
+  /* Green palette */
+  --g0: #003d20;
+  --g1: #005c2f;
+  --g2: #00804a;
+  --g3: #00b85c;
+  --g4: #1dce72;
+  --g5: #5de09a;
+  --gbg: #e6fff2;
+
+  /* Red palette */
+  --r0: #7a0010;
+  --r1: #b5001a;
+  --r2: #e23b48;
+  --r3: #ff6570;
+  --rbg: #fff0f1;
+
+  /* Gold */
+  --gold: #f5b50a;
+  --gold-bg: #fffbea;
+  --gold-text: #7a5200;
+
+  /* Surfaces */
+  --bg: #eef1f6;
+  --surf: #ffffff;
+  --surf2: #f4f6fa;
+
+  /* Position colours */
+  --pos-gk: #e07b00;
+  --pos-def: #2459b8;
+  --pos-mid: #7140c8;
+  --pos-fwd: #c82030;
+
+  /* Pitch */
+  --pitch-a: #27a660;
+  --pitch-b: #238f54;
+
+  /* Shadows */
+  --sh-sm: 0 1px 3px rgba(14, 23, 38, 0.06), 0 2px 8px rgba(14, 23, 38, 0.08);
+  --sh-md: 0 2px 8px rgba(14, 23, 38, 0.08), 0 4px 20px rgba(14, 23, 38, 0.1);
+  --sh-lg: 0 8px 32px rgba(14, 23, 38, 0.14), 0 2px 8px rgba(14, 23, 38, 0.06);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg);
+  color: var(--n0);
+  font-family: "Inter", Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
