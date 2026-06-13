@@ -112,6 +112,7 @@ export default function OnboardingClient({
     setError(null);
 
     const supabase = createClient();
+    await supabase.from("profiles").upsert({ id: userId });
     const { error: insertError } = await supabase.from("league_members").insert({
       league_id: league.id,
       user_id: userId,
