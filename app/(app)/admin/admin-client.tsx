@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 interface LeagueMember {
@@ -26,6 +26,16 @@ interface League {
   invite_code: string;
   invite_closed: boolean;
   creator_id: string;
+}
+
+interface MatchRow {
+  id: number;
+  kickoff_time: string;
+  home_score: number | null;
+  away_score: number | null;
+  status: string;
+  home_nation: { name: string } | null;
+  away_nation: { name: string } | null;
 }
 
 interface AdminClientProps {
@@ -68,6 +78,104 @@ export function AdminClient({
   const [kickingId, setKickingId] = useState<string | null>(null);
   const [windowBusy, setWindowBusy] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+
+  // Match Results state
+  const GROUP_STAGE_ROUND_ID = "a0000000-0000-0000-0000-000000000001";
+  const [matches, setMatches] = useState<MatchRow[]>([]);
+  const [matchesLoading, setMatchesLoading] = useState(true);
+  const [scoreInputs, setScoreInputs] = useState<Record<number, { home: string; away: string }>>({});
+  const [savingMatchId, setSavingMatchId] = useState<number | null>(null);
+  const [matchStatusMsgs, setMatchStatusMsgs] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    void (async () => {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("matches")
+        .select(
+          "id, kickoff_time, home_score, away_score, status, home_nation:nations!matches_home_nation_id_fkey(name), away_nation:nations!matches_away_nation_id_fkey(name)"
+        )
+        .eq("round_id", GROUP_STAGE_ROUND_ID)
+        .order("kickoff_time", { ascending: false });
+
+      const rows: MatchRow[] = (data ?? []).map((m) => {
+        const homeRaw = m.home_nation as unknown;
+        const awayRaw = m.away_nation as unknown;
+        const homeNation = Array.isArray(homeRaw)
+          ? (homeRaw[0] as { name: string } | undefined) ?? null
+          : (homeRaw as { name: string } | null);
+        const awayNation = Array.isArray(awayRaw)
+          ? (awayRaw[0] as { name: string } | undefined) ?? null
+          : (awayRaw as { name: string } | null);
+        return {
+          id: m.id as number,
+          kickoff_time: m.kickoff_time as string,
+          home_score: m.home_score as number | null,
+          away_score: m.away_score as number | null,
+          status: m.status as string,
+          home_nation: homeNation,
+          away_nation: awayNation,
+        };
+      });
+      setMatches(rows);
+      setMatchesLoading(false);
+    })();
+  }, []);
+
+  function formatKickoffIST(iso: string): string {
+    const d = new Date(iso);
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: "Asia/Kolkata",
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    };
+    return d.toLocaleString("en-IN", options) + " IST";
+  }
+
+  async function saveMatchScore(matchId: number) {
+    const input = scoreInputs[matchId];
+    if (!input) return;
+    const home = parseInt(input.home, 10);
+    const away = parseInt(input.away, 10);
+    if (isNaN(home) || isNaN(away)) {
+      setMatchStatusMsgs((prev) => ({ ...prev, [matchId]: "Error: Enter valid scores." }));
+      return;
+    }
+    setSavingMatchId(matchId);
+    setMatchStatusMsgs((prev) => ({ ...prev, [matchId]: "" }));
+    try {
+      const res = await fetch("/api/admin/match-score", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ match_id: matchId, home_score: home, away_score: away }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok) {
+        setMatchStatusMsgs((prev) => ({ ...prev, [matchId]: `Error: ${data.error ?? "Unknown error"}` }));
+      } else {
+        setMatchStatusMsgs((prev) => ({ ...prev, [matchId]: "Saved!" }));
+        // Update local match state
+        setMatches((prev) =>
+          prev.map((m) =>
+            m.id === matchId
+              ? { ...m, home_score: home, away_score: away, status: "finished" }
+              : m
+          )
+        );
+        setScoreInputs((prev) => {
+          const next = { ...prev };
+          delete next[matchId];
+          return next;
+        });
+      }
+    } finally {
+      setSavingMatchId(null);
+    }
+  }
 
   // Compute full invite URL on client
   const fullInviteUrl =
@@ -479,6 +587,267 @@ export function AdminClient({
               </div>
             );
           })}
+        </div>
+
+        {/* Match Results */}
+        <div style={sectionStyle}>
+          <div
+            style={{
+              fontFamily: "var(--font-saira), sans-serif",
+              fontWeight: 700,
+              fontSize: 14,
+              color: "var(--n0)",
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+            }}
+          >
+            Match Results · Group Stage
+          </div>
+
+          {matchesLoading ? (
+            <div
+              style={{
+                fontFamily: "var(--font-inter), sans-serif",
+                fontSize: 13,
+                color: "var(--n5)",
+              }}
+            >
+              Loading matches…
+            </div>
+          ) : matches.length === 0 ? (
+            <div
+              style={{
+                fontFamily: "var(--font-inter), sans-serif",
+                fontSize: 13,
+                color: "var(--n5)",
+              }}
+            >
+              No group stage matches found.
+            </div>
+          ) : (
+            matches.map((m, idx) => {
+              const kickoff = new Date(m.kickoff_time);
+              const now = new Date();
+              const isPast = kickoff < now;
+              const isFinished = m.status === "finished";
+              const isEditing =
+                scoreInputs[m.id] !== undefined && !isFinished;
+              const input = scoreInputs[m.id] ?? { home: "", away: "" };
+              const msg = matchStatusMsgs[m.id];
+
+              return (
+                <div
+                  key={m.id}
+                  style={{
+                    paddingTop: idx === 0 ? 0 : 10,
+                    borderTop: idx === 0 ? "none" : "1px solid var(--n9)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 6,
+                  }}
+                >
+                  {/* Match label row */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          fontFamily: "var(--font-saira), sans-serif",
+                          fontWeight: 600,
+                          fontSize: 14,
+                          color: "var(--n0)",
+                        }}
+                      >
+                        {m.home_nation?.name ?? "TBD"} vs {m.away_nation?.name ?? "TBD"}
+                      </div>
+                      <div
+                        style={{
+                          fontFamily: "var(--font-inter), sans-serif",
+                          fontSize: 11,
+                          color: "var(--n5)",
+                          marginTop: 2,
+                        }}
+                      >
+                        {formatKickoffIST(m.kickoff_time)}
+                      </div>
+                    </div>
+
+                    {/* Score display for finished matches */}
+                    {isFinished && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontFamily: "var(--font-anton), sans-serif",
+                            fontSize: 18,
+                            color: "var(--g3)",
+                          }}
+                        >
+                          {m.home_score ?? 0} – {m.away_score ?? 0}
+                        </span>
+                        <button
+                          onClick={() =>
+                            setScoreInputs((prev) => ({
+                              ...prev,
+                              [m.id]: {
+                                home: String(m.home_score ?? 0),
+                                away: String(m.away_score ?? 0),
+                              },
+                            }))
+                          }
+                          style={{
+                            padding: "4px 10px",
+                            borderRadius: 8,
+                            background: "var(--surf2)",
+                            border: "1.5px solid var(--n8)",
+                            color: "var(--n4)",
+                            fontFamily: "var(--font-saira), sans-serif",
+                            fontWeight: 700,
+                            fontSize: 11,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Score input for past-kickoff scheduled matches or editing finished matches */}
+                  {(isPast && !isFinished) || (isFinished && scoreInputs[m.id] !== undefined) ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <input
+                        type="number"
+                        min={0}
+                        max={20}
+                        value={input.home}
+                        onChange={(e) =>
+                          setScoreInputs((prev) => ({
+                            ...prev,
+                            [m.id]: { ...input, home: e.target.value },
+                          }))
+                        }
+                        placeholder="Home"
+                        style={{
+                          width: 60,
+                          padding: "8px 10px",
+                          borderRadius: 8,
+                          border: "1.5px solid var(--n8)",
+                          fontFamily: "var(--font-inter), sans-serif",
+                          fontSize: 14,
+                          color: "var(--n0)",
+                          background: "var(--surf2)",
+                          outline: "none",
+                          textAlign: "center",
+                        }}
+                      />
+                      <span
+                        style={{
+                          fontFamily: "var(--font-saira), sans-serif",
+                          fontWeight: 700,
+                          color: "var(--n5)",
+                        }}
+                      >
+                        –
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={20}
+                        value={input.away}
+                        onChange={(e) =>
+                          setScoreInputs((prev) => ({
+                            ...prev,
+                            [m.id]: { ...input, away: e.target.value },
+                          }))
+                        }
+                        placeholder="Away"
+                        style={{
+                          width: 60,
+                          padding: "8px 10px",
+                          borderRadius: 8,
+                          border: "1.5px solid var(--n8)",
+                          fontFamily: "var(--font-inter), sans-serif",
+                          fontSize: 14,
+                          color: "var(--n0)",
+                          background: "var(--surf2)",
+                          outline: "none",
+                          textAlign: "center",
+                        }}
+                      />
+                      <button
+                        onClick={() => void saveMatchScore(m.id)}
+                        disabled={savingMatchId === m.id}
+                        style={{
+                          flex: 1,
+                          padding: "8px 0",
+                          borderRadius: 8,
+                          background: "var(--g3)",
+                          color: "#fff",
+                          fontFamily: "var(--font-saira), sans-serif",
+                          fontWeight: 700,
+                          fontSize: 13,
+                          border: "none",
+                          cursor: savingMatchId === m.id ? "not-allowed" : "pointer",
+                          opacity: savingMatchId === m.id ? 0.7 : 1,
+                        }}
+                      >
+                        {savingMatchId === m.id ? "Saving…" : "Save Result"}
+                      </button>
+                      {isFinished && (
+                        <button
+                          onClick={() =>
+                            setScoreInputs((prev) => {
+                              const next = { ...prev };
+                              delete next[m.id];
+                              return next;
+                            })
+                          }
+                          style={{
+                            padding: "8px 10px",
+                            borderRadius: 8,
+                            background: "transparent",
+                            border: "1.5px solid var(--n8)",
+                            color: "var(--n5)",
+                            fontFamily: "var(--font-saira), sans-serif",
+                            fontWeight: 700,
+                            fontSize: 12,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {/* Per-match status message */}
+                  {msg && (
+                    <div
+                      style={{
+                        fontFamily: "var(--font-inter), sans-serif",
+                        fontSize: 12,
+                        color: msg.startsWith("Error") ? "var(--r1)" : "var(--g3)",
+                      }}
+                    >
+                      {msg}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Transfer Window */}

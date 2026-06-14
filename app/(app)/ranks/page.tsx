@@ -63,7 +63,7 @@ export default async function RanksPage() {
     });
   }
 
-  const roundId = "a0000000-0000-0000-0000-000000000002";
+  const roundId = "a0000000-0000-0000-0000-000000000001";
 
   // --- Prediction scores ---
   const { data: scores } = await supabase
