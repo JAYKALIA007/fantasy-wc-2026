@@ -204,8 +204,8 @@ export default async function NationPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[
               { num: 1, text: <>Choose one nation to support before the group stage ends</> },
-              { num: 2, text: <>Every time your nation wins a match: <strong style={{ color: "var(--g3)" }}>+3 bonus points</strong> added to your prediction leaderboard total</> },
-              { num: 3, text: <>Every draw your nation plays: <strong style={{ color: "var(--g3)" }}>+1 bonus point</strong></> },
+              { num: 2, text: <>Primary nation wins: <strong style={{ color: "var(--g3)" }}>+3 pts</strong>. Wildcard wins: <strong style={{ color: "var(--g3)" }}>+6 pts</strong> (2× — first come first serve)</> },
+              { num: 3, text: <>Draw: <strong style={{ color: "var(--g3)" }}>+1 pt</strong> primary, <strong style={{ color: "var(--g3)" }}>+2 pts</strong> wildcard</> },
               { num: 4, text: <>If your nation reaches the Round of 32: <strong style={{ color: "var(--g3)" }}>+5 points</strong></> },
               { num: 5, text: <>If your nation reaches the Round of 16: <strong style={{ color: "var(--g3)" }}>+10 points</strong></> },
               { num: 6, text: <>Quarter-finals: <strong style={{ color: "var(--g3)" }}>+15 points</strong></> },

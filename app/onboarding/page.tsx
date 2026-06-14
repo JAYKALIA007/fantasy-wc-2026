@@ -30,8 +30,12 @@ export default async function OnboardingPage() {
 
   const { data: memberRows } = await supabase
     .from("league_members")
-    .select("id", { count: "exact" })
+    .select("id, secondary_nation_id", { count: "exact" })
     .eq("league_id", league?.id ?? "");
+
+  const takenWildcardIds = (memberRows ?? [])
+    .map((m) => m.secondary_nation_id as number | null)
+    .filter((id): id is number => id !== null);
 
   return (
     <OnboardingClient
@@ -40,6 +44,7 @@ export default async function OnboardingPage() {
       league={league ?? { id: "", name: "WC 2026 League", max_players: 15 }}
       nations={nations ?? []}
       memberCount={memberRows?.length ?? 0}
+      takenWildcardIds={takenWildcardIds}
     />
   );
 }

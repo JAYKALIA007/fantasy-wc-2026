@@ -14,6 +14,7 @@ type Props = {
   league: League;
   nations: Nation[];
   memberCount: number;
+  takenWildcardIds: number[];
 };
 
 const FLAG_EMOJI: Record<string, string> = {
@@ -34,7 +35,7 @@ const FLAG_EMOJI: Record<string, string> = {
 const TOTAL_STEPS = 6;
 const STEP_LABELS = ["Invite", "Sign in", "How it works", "Primary pick", "Wildcard pick", "Your name"];
 
-export default function OnboardingClient({ userEmail, userId, league, nations, memberCount }: Props) {
+export default function OnboardingClient({ userEmail, userId, league, nations, memberCount, takenWildcardIds }: Props) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [primaryNationId, setPrimaryNationId] = useState<number | null>(null);
@@ -115,10 +116,11 @@ export default function OnboardingClient({ userEmail, userId, league, nations, m
         {step === 5 && (
           <StepNationPicker
             title="Your wildcard"
-            subtitle="Pick a dark horse — a team outside the top 15. Bonus points if they surprise everyone."
+            subtitle="Pick a dark horse — outside the top 15. First come first serve. Wildcard wins earn 2× points."
             nations={rest}
             selectedId={secondaryNationId}
             onSelect={setSecondaryNationId}
+            takenIds={takenWildcardIds}
           />
         )}
         {step === 6 && (
@@ -183,8 +185,9 @@ function StepHowItWorks() {
   const rows = [
     { label: "Correct result", value: "+1 pt", sub: "Right winner or draw" },
     { label: "Exact score", value: "+3 pts", sub: "Exact home & away goals" },
-    { label: "Nation wins a match", value: "+3 pts", sub: "Both primary & wildcard" },
-    { label: "Nation draws", value: "+1 pt", sub: "Group stage draws count" },
+    { label: "Primary nation wins", value: "+3 pts", sub: "Your #1 pick" },
+    { label: "Wildcard nation wins", value: "+6 pts", sub: "2× — first come first serve" },
+    { label: "Nation draws", value: "+1 / +2 pts", sub: "Primary / Wildcard" },
     { label: "Nation reaches R16", value: "+10 pts", sub: "R32 +5, QF +15, SF +20" },
     { label: "Nation wins the final 🏆", value: "+50 pts", sub: "" },
   ];
@@ -214,12 +217,13 @@ function StepHowItWorks() {
   );
 }
 
-function StepNationPicker({ title, subtitle, nations, selectedId, onSelect }: {
+function StepNationPicker({ title, subtitle, nations, selectedId, onSelect, takenIds = [] }: {
   title: string;
   subtitle: string;
   nations: Nation[];
   selectedId: number | null;
   onSelect: (id: number) => void;
+  takenIds?: number[];
 }) {
   return (
     <div style={{ paddingBottom: 16 }}>
@@ -231,28 +235,31 @@ function StepNationPicker({ title, subtitle, nations, selectedId, onSelect }: {
         {nations.map(nation => {
           const flag = FLAG_EMOJI[nation.name] ?? "🏳";
           const isSelected = selectedId === nation.id;
+          const isTaken = takenIds.includes(nation.id);
           return (
             <button
               key={nation.id}
-              onClick={() => onSelect(nation.id)}
+              onClick={() => !isTaken && onSelect(nation.id)}
+              disabled={isTaken}
               style={{
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                 gap: 4, padding: "12px 6px", borderRadius: 12,
-                border: isSelected ? "2px solid var(--g3)" : "2px solid var(--n8)",
-                backgroundColor: isSelected ? "var(--gbg)" : "var(--surf)",
-                cursor: "pointer", transition: "all 0.15s",
+                border: isSelected ? "2px solid var(--g3)" : isTaken ? "2px solid var(--n8)" : "2px solid var(--n8)",
+                backgroundColor: isSelected ? "var(--gbg)" : isTaken ? "var(--n9)" : "var(--surf)",
+                cursor: isTaken ? "not-allowed" : "pointer",
+                opacity: isTaken ? 0.45 : 1,
+                transition: "all 0.15s",
                 boxShadow: isSelected ? "0 0 0 3px rgba(0,184,92,0.15)" : "none",
+                position: "relative",
               }}
             >
               <span style={{ fontSize: 28, lineHeight: 1 }}>{flag}</span>
               <span style={{ fontSize: 10, fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, color: isSelected ? "var(--g2)" : "var(--n4)", textAlign: "center", lineHeight: 1.2 }}>
                 {nation.name}
               </span>
-              {nation.fifa_ranking && (
-                <span style={{ fontSize: 9, color: isSelected ? "var(--g3)" : "var(--n6)", fontFamily: "var(--font-inter), sans-serif" }}>
-                  #{nation.fifa_ranking}
-                </span>
-              )}
+              <span style={{ fontSize: 9, fontFamily: "var(--font-inter), sans-serif", color: isTaken ? "var(--r2)" : isSelected ? "var(--g3)" : "var(--n6)", fontWeight: isTaken ? 700 : 400 }}>
+                {isTaken ? "Taken" : nation.fifa_ranking ? `#${nation.fifa_ranking}` : ""}
+              </span>
             </button>
           );
         })}

@@ -59,8 +59,10 @@ export default async function RulesPage() {
         <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 10px", lineHeight: 1.5 }}>
           You picked two nations during sign-up. Every time they play, you earn bonus points on top of your prediction score.
         </p>
-        <Row label="Your nation wins" value="+3 pts" sub="Applies to both primary and wildcard picks" />
-        <Row label="Your nation draws" value="+1 pt" sub="Group stage draws count" />
+        <Row label="Primary nation wins" value="+3 pts" sub="Your #1 pick (top 15)" />
+        <Row label="Wildcard nation wins" value="+6 pts" sub="2× — first come first serve pick" />
+        <Row label="Primary draws" value="+1 pt" sub="Group stage draws count" />
+        <Row label="Wildcard draws" value="+2 pts" sub="2× multiplier applies" />
         <div style={{ height: 8 }} />
         <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>Round progression bonuses</p>
         <Row label="Reach Round of 32" value="+5 pts" />

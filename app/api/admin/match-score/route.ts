@@ -164,11 +164,11 @@ export async function POST(request: Request) {
       }
     }
 
-    // Check secondary nation
+    // Check secondary (wildcard) nation — 2x points
     if (secondaryNationId !== null) {
       let pts = 0;
-      if (homeNationId !== null && secondaryNationId === homeNationId) pts = homePoints;
-      else if (awayNationId !== null && secondaryNationId === awayNationId) pts = awayPoints;
+      if (homeNationId !== null && secondaryNationId === homeNationId) pts = homePoints * 2;
+      else if (awayNationId !== null && secondaryNationId === awayNationId) pts = awayPoints * 2;
       if (pts > 0) {
         bonusRecords.push({
           league_member_id: memberId,
