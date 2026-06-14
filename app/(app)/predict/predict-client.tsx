@@ -157,11 +157,18 @@ export default function PredictClient({ matches, existingPredictions, leagueId, 
   };
 
   const [scores, setScores] = useState<Record<number, [number, number]>>(initialScores);
+  const [committedScores, setCommittedScores] = useState<Record<number, [number, number]>>(initialScores);
   const [savingMap, setSavingMap] = useState<Record<number, boolean>>({});
   const [savedMatches, setSavedMatches] = useState<Set<number>>(new Set(
     existingPredictions.map((p) => p.match_id)
   ));
   const [flashMap, setFlashMap] = useState<Record<number, boolean>>({});
+
+  const isDirty = (matchId: number) => {
+    const [h, a] = scores[matchId] ?? [0, 0];
+    const [ch, ca] = committedScores[matchId] ?? [0, 0];
+    return h !== ch || a !== ca;
+  };
 
   const handleSave = async (matchId: number) => {
     setSavingMap((prev) => ({ ...prev, [matchId]: true }));
@@ -174,6 +181,7 @@ export default function PredictClient({ matches, existingPredictions, leagueId, 
       });
       if (res.ok) {
         setSavedMatches((prev) => new Set(prev).add(matchId));
+        setCommittedScores((prev) => ({ ...prev, [matchId]: scores[matchId] ?? [0, 0] }));
         setFlashMap((prev) => ({ ...prev, [matchId]: true }));
         setTimeout(() => setFlashMap((prev) => ({ ...prev, [matchId]: false })), 1500);
       } else {
@@ -319,7 +327,7 @@ export default function PredictClient({ matches, existingPredictions, leagueId, 
                         </span>
                         {isFlashing ? (
                           <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "var(--g3)" }}>✓ Saved!</span>
-                        ) : isSaved ? (
+                        ) : isSaved && !isDirty(match.id) ? (
                           <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 600, fontSize: 12, color: "var(--g4)" }}>✓ Saved</span>
                         ) : null}
                       </div>
@@ -328,15 +336,15 @@ export default function PredictClient({ matches, existingPredictions, leagueId, 
                         disabled={isSaving}
                         style={{
                           marginTop: 12, width: "100%", padding: "12px 0", borderRadius: 12, border: "none",
-                          background: isSaved ? "rgba(0,184,92,0.2)" : "var(--g3)",
-                          color: isSaved ? "var(--g4)" : "#fff",
+                          background: isSaved && !isDirty(match.id) ? "rgba(0,184,92,0.2)" : "var(--g3)",
+                          color: isSaved && !isDirty(match.id) ? "var(--g4)" : "#fff",
                           fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 15,
                           cursor: isSaving ? "not-allowed" : "pointer",
                           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                         }}
                       >
                         {isSaving && <span className="btn-spinner" />}
-                        {isSaving ? "Saving…" : isSaved ? "Update prediction" : "Save prediction"}
+                        {isSaving ? "Saving…" : isSaved && !isDirty(match.id) ? "Update prediction" : "Save prediction"}
                       </button>
                     </>
                   )}
