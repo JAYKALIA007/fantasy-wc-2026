@@ -22,6 +22,23 @@ interface Match {
   away_nation: Nation;
 }
 
+interface FinishedMatch {
+  id: number;
+  kickoff_time: string;
+  group_label?: string | null;
+  home_score: number;
+  away_score: number;
+  home_nation: { name: string; flag_code: string };
+  away_nation: { name: string; flag_code: string };
+}
+
+interface LeaderboardRow {
+  user_id: string;
+  profile_name: string;
+  total_points: number;
+  joined_at: string;
+}
+
 function toIST(utcDate: string): string {
   const d = new Date(utcDate);
   const istMs = d.getTime() + 5.5 * 60 * 60 * 1000;
@@ -94,13 +111,16 @@ export default async function HomePage() {
   const leagueId = membership.league_id as string;
   const now = new Date().toISOString();
 
-  // Run all remaining queries in parallel
+  // Run all independent queries in parallel
   const [
     leagueDataResult,
     nextMatchResult,
     openMatchesResult,
     predScoreResult,
     totalMembersResult,
+    recentMatchesResult,
+    allMembersResult,
+    allScoresResult,
   ] = await Promise.all([
     supabase
       .from("leagues")
@@ -143,10 +163,33 @@ export default async function HomePage() {
       .from("league_members")
       .select("id", { count: "exact", head: true })
       .eq("league_id", leagueId),
+
+    supabase
+      .from("matches")
+      .select(
+        `id, kickoff_time, group_label, home_score, away_score,
+         home_nation:home_nation_id(name, flag_code),
+         away_nation:away_nation_id(name, flag_code)`
+      )
+      .eq("status", "finished")
+      .order("kickoff_time", { ascending: false })
+      .limit(3),
+
+    supabase
+      .from("league_members")
+      .select("id, user_id, profile_name, joined_at")
+      .eq("league_id", leagueId),
+
+    supabase
+      .from("prediction_round_scores")
+      .select("user_id, total_points")
+      .eq("league_id", leagueId)
+      .eq("round_id", "a0000000-0000-0000-0000-000000000001"),
   ]);
 
   const leagueData = leagueDataResult.data;
   const isCreator = leagueData?.creator_id === user.id;
+  const adminUserId = leagueData?.creator_id as string | null;
 
   const nextMatchRaw = nextMatchResult.data;
   const nextMatch: Match | null = nextMatchRaw
@@ -184,28 +227,116 @@ export default async function HomePage() {
   const predScore = predScoreResult.data;
   const totalMembers = totalMembersResult.count;
 
-  const higherCountResult = await supabase
-    .from("prediction_round_scores")
-    .select("id", { count: "exact", head: true })
-    .eq("league_id", leagueId)
-    .eq("round_id", "a0000000-0000-0000-0000-000000000001")
-    .gt("total_points", predScore?.total_points ?? -1);
+  // Process recent matches
+  const recentMatches: FinishedMatch[] = (recentMatchesResult.data ?? []).map((m) => ({
+    id: m.id as number,
+    kickoff_time: m.kickoff_time as string,
+    group_label: m.group_label as string | null,
+    home_score: m.home_score as number,
+    away_score: m.away_score as number,
+    home_nation: Array.isArray(m.home_nation)
+      ? (m.home_nation[0] as { name: string; flag_code: string })
+      : (m.home_nation as { name: string; flag_code: string }),
+    away_nation: Array.isArray(m.away_nation)
+      ? (m.away_nation[0] as { name: string; flag_code: string })
+      : (m.away_nation as { name: string; flag_code: string }),
+  }));
+
+  // Build leaderboard member maps (excluding admin)
+  const allMembersRaw = (allMembersResult.data ?? []).filter(
+    (m) => m.user_id !== adminUserId
+  );
+  const memberIdToUserId = new Map<string, string>();
+  const memberInfoMap = new Map<string, { profile_name: string; joined_at: string }>();
+  for (const m of allMembersRaw) {
+    memberIdToUserId.set(m.id as string, m.user_id as string);
+    memberInfoMap.set(m.user_id as string, {
+      profile_name: m.profile_name as string,
+      joined_at: m.joined_at as string,
+    });
+  }
+
+  const recentMatchIds = recentMatches.map((m) => m.id);
+  const memberIds = Array.from(memberIdToUserId.keys());
+
+  // Fetch sequential data in parallel
+  const [higherCountResult, predictedCountOrNull, recentPredictionsResult, nationBonusesResult] =
+    await Promise.all([
+      supabase
+        .from("prediction_round_scores")
+        .select("id", { count: "exact", head: true })
+        .eq("league_id", leagueId)
+        .eq("round_id", "a0000000-0000-0000-0000-000000000001")
+        .gt("total_points", predScore?.total_points ?? -1),
+
+      openMatches.length > 0
+        ? supabase
+            .from("predictions")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .eq("league_id", leagueId)
+            .in("match_id", openMatches.map((m) => m.id))
+        : Promise.resolve({ count: 0 }),
+
+      recentMatchIds.length > 0
+        ? supabase
+            .from("predictions")
+            .select("match_id, predicted_home_score, predicted_away_score, points")
+            .eq("user_id", user.id)
+            .eq("league_id", leagueId)
+            .in("match_id", recentMatchIds)
+        : Promise.resolve({ data: [] as Array<{ match_id: number; predicted_home_score: number; predicted_away_score: number; points: number | null }> }),
+
+      memberIds.length > 0
+        ? supabase
+            .from("nation_bonus_points")
+            .select("league_member_id, points")
+            .in("league_member_id", memberIds)
+        : Promise.resolve({ data: [] as Array<{ league_member_id: string; points: number }> }),
+    ]);
 
   const predRank = predScore ? (higherCountResult.count ?? 0) + 1 : null;
-
-  // Get existing predictions count for open matches
-  const openMatchIds = openMatches.map((m) => m.id);
-  let predictedCount = 0;
-  if (openMatchIds.length > 0) {
-    const { count } = await supabase
-      .from("predictions")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .eq("league_id", leagueId)
-      .in("match_id", openMatchIds);
-    predictedCount = count ?? 0;
-  }
+  const predictedCount = predictedCountOrNull?.count ?? 0;
   const unpredictedCount = openMatches.length - predictedCount;
+
+  type MyPrediction = { match_id: number; predicted_home_score: number; predicted_away_score: number; points: number | null };
+  const myRecentPredictions: MyPrediction[] = (recentPredictionsResult.data ?? []) as MyPrediction[];
+
+  // Build nation bonus map
+  const nationBonusByUser = new Map<string, number>();
+  for (const nb of (nationBonusesResult.data ?? []) as Array<{ league_member_id: string; points: number }>) {
+    const uid = memberIdToUserId.get(nb.league_member_id);
+    if (uid) nationBonusByUser.set(uid, (nationBonusByUser.get(uid) ?? 0) + nb.points);
+  }
+
+  // Build sorted leaderboard top 5
+  const allScores = (allScoresResult.data ?? []) as Array<{ user_id: string; total_points: number }>;
+  const leaderboardRows: LeaderboardRow[] = [];
+  for (const s of allScores) {
+    if (!memberInfoMap.has(s.user_id)) continue;
+    const member = memberInfoMap.get(s.user_id)!;
+    leaderboardRows.push({
+      user_id: s.user_id,
+      profile_name: member.profile_name,
+      total_points: s.total_points + (nationBonusByUser.get(s.user_id) ?? 0),
+      joined_at: member.joined_at,
+    });
+  }
+  for (const [uid, member] of memberInfoMap.entries()) {
+    if (!leaderboardRows.find((r) => r.user_id === uid)) {
+      leaderboardRows.push({
+        user_id: uid,
+        profile_name: member.profile_name,
+        total_points: nationBonusByUser.get(uid) ?? 0,
+        joined_at: member.joined_at,
+      });
+    }
+  }
+  leaderboardRows.sort((a, b) => {
+    if (b.total_points !== a.total_points) return b.total_points - a.total_points;
+    return new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime();
+  });
+  const top5 = leaderboardRows.slice(0, 5);
 
   // Avatar
   type AvatarFields = { initials: string; position: string; card_type: string; rating: number; footballer_name: string; nation: string };
@@ -321,7 +452,7 @@ export default async function HomePage() {
         </div>
       </div>
 
-      <div style={{ padding: "16px 16px 0", display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ padding: "16px 16px 80px", display: "flex", flexDirection: "column", gap: 14 }}>
         {/* Matchday hero card */}
         {nextMatch && (
           <div
@@ -686,6 +817,232 @@ export default async function HomePage() {
                 </Link>
               )}
             </div>
+          </div>
+        )}
+
+        {/* League standings mini-leaderboard */}
+        {top5.length > 0 && (
+          <Link
+            href="/ranks"
+            style={{ display: "block", textDecoration: "none" }}
+          >
+            <div
+              style={{
+                background: "var(--surf)",
+                borderRadius: 14,
+                padding: "14px",
+                boxShadow: "var(--sh-sm)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 10,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "var(--font-saira), sans-serif",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    color: "var(--n0)",
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  League standings
+                </span>
+                <span
+                  style={{
+                    fontFamily: "var(--font-inter), sans-serif",
+                    fontSize: 12,
+                    color: "var(--n5)",
+                  }}
+                >
+                  Full →
+                </span>
+              </div>
+              {top5.map((row, idx) => {
+                const isMe = row.user_id === user.id;
+                return (
+                  <div
+                    key={row.user_id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      background: isMe ? "rgba(0,200,100,0.08)" : "transparent",
+                      marginBottom: idx < top5.length - 1 ? 2 : 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: "var(--font-inter), sans-serif",
+                        fontSize: 12,
+                        color: idx === 0 ? "var(--gold)" : "var(--n5)",
+                        width: 16,
+                        textAlign: "center",
+                        fontWeight: idx === 0 ? 700 : 400,
+                      }}
+                    >
+                      {idx + 1}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-saira), sans-serif",
+                        fontWeight: isMe ? 700 : 600,
+                        fontSize: 14,
+                        color: "var(--n0)",
+                        flex: 1,
+                      }}
+                    >
+                      {row.profile_name}
+                      {isMe && (
+                        <span
+                          style={{
+                            fontFamily: "var(--font-inter), sans-serif",
+                            fontWeight: 400,
+                            fontSize: 11,
+                            color: "var(--n5)",
+                            marginLeft: 4,
+                          }}
+                        >
+                          (you)
+                        </span>
+                      )}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-saira), sans-serif",
+                        fontWeight: 700,
+                        fontSize: 14,
+                        color: isMe ? "var(--g3)" : "var(--n0)",
+                      }}
+                    >
+                      {row.total_points}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </Link>
+        )}
+
+        {/* Recent results */}
+        {recentMatches.length > 0 && (
+          <div
+            style={{
+              background: "var(--surf)",
+              borderRadius: 14,
+              padding: "14px",
+              boxShadow: "var(--sh-sm)",
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "var(--font-saira), sans-serif",
+                fontWeight: 700,
+                fontSize: 13,
+                color: "var(--n0)",
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+                marginBottom: 10,
+              }}
+            >
+              Recent results
+            </div>
+            {recentMatches.map((m, idx) => {
+              const myPred = myRecentPredictions.find((p) => p.match_id === m.id);
+              const pts = myPred?.points ?? null;
+              return (
+                <div
+                  key={m.id}
+                  style={{
+                    padding: "10px 0",
+                    borderBottom: idx < recentMatches.length - 1 ? "1px solid var(--n9)" : "none",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 3,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: "var(--font-saira), sans-serif",
+                        fontWeight: 700,
+                        fontSize: 15,
+                        color: "var(--n0)",
+                      }}
+                    >
+                      {m.home_nation.flag_code} {m.home_score} – {m.away_score} {m.away_nation.flag_code}
+                    </span>
+                    {myPred ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span
+                          style={{
+                            fontFamily: "var(--font-inter), sans-serif",
+                            fontSize: 12,
+                            color: "var(--n5)",
+                          }}
+                        >
+                          {myPred.predicted_home_score}–{myPred.predicted_away_score}
+                        </span>
+                        <span
+                          style={{
+                            padding: "2px 8px",
+                            borderRadius: 20,
+                            background:
+                              pts === 3
+                                ? "rgba(34,197,94,0.15)"
+                                : pts === 1
+                                ? "rgba(245,181,10,0.15)"
+                                : "rgba(226,59,72,0.15)",
+                            color:
+                              pts === 3
+                                ? "var(--g3)"
+                                : pts === 1
+                                ? "var(--gold)"
+                                : "var(--r3)",
+                            fontFamily: "var(--font-saira), sans-serif",
+                            fontWeight: 700,
+                            fontSize: 11,
+                          }}
+                        >
+                          {pts === 3 ? "+3 ✓" : pts === 1 ? "+1" : "0"}
+                        </span>
+                      </div>
+                    ) : (
+                      <span
+                        style={{
+                          fontFamily: "var(--font-inter), sans-serif",
+                          fontSize: 11,
+                          color: "var(--n6)",
+                        }}
+                      >
+                        No pick
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-inter), sans-serif",
+                      fontSize: 11,
+                      color: "var(--n6)",
+                    }}
+                  >
+                    {m.group_label ? `Group ${m.group_label} · ` : ""}{toIST(m.kickoff_time)}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
