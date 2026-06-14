@@ -32,15 +32,20 @@ function toIST(utcDate: string): string {
   return `${ist.getUTCDate()} ${months[ist.getUTCMonth()]} · ${hh}:${mm} IST`;
 }
 
-function formatCountdown(kickoffUtc: string): string {
-  const diff = new Date(kickoffUtc).getTime() - Date.now();
-  const totalMin = Math.floor(diff / 1000 / 60);
-  if (totalMin <= 0) return "Starting soon";
+function formatCountdown(kickoffUtc: string, deadlineUtc?: string | null): string {
+  const now = Date.now();
+  const kickoffMs = new Date(kickoffUtc).getTime();
+  if (kickoffMs <= now) {
+    if (deadlineUtc) {
+      const mins = Math.max(0, Math.ceil((new Date(deadlineUtc).getTime() - now) / 60000));
+      return `⚡ ${mins}m left`;
+    }
+    return "In progress";
+  }
+  const totalMin = Math.floor((kickoffMs - now) / 60000);
   const hours = Math.floor(totalMin / 60);
   const mins = totalMin % 60;
-  if (hours >= 24) {
-    return `${Math.floor(hours / 24)}d ${hours % 24}h`;
-  }
+  if (hours >= 24) return `${Math.floor(hours / 24)}d ${hours % 24}h`;
   return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
 }
 
@@ -623,7 +628,9 @@ export default async function HomePage() {
                         marginTop: 2,
                       }}
                     >
-                      Closes in {formatCountdown(m.kickoff_time)} · {toIST(m.kickoff_time)}
+                      {new Date(m.kickoff_time).getTime() > Date.now()
+                        ? `Closes in ${formatCountdown(m.kickoff_time)} · ${toIST(m.kickoff_time)}`
+                        : formatCountdown(m.kickoff_time, m.prediction_deadline)}
                     </div>
                   </div>
                   <Link
