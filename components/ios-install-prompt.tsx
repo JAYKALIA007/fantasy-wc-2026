@@ -1,33 +1,57 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
-const DISMISSED_KEY = "ios-install-prompt-dismissed";
+const DISMISSED_KEY = "install-prompt-dismissed";
 
-function isIosSafari(): boolean {
-  if (typeof window === "undefined") return false;
+type Mode = "android" | "ios" | null;
+
+function detectMode(): Mode {
+  if (typeof window === "undefined") return null;
   const ua = navigator.userAgent;
-  const isIos = /iPhone|iPad/.test(ua);
-  const isStandalone = (navigator as Navigator & { standalone?: boolean }).standalone === true;
-  return isIos && !isStandalone;
+  const isStandalone =
+    (navigator as Navigator & { standalone?: boolean }).standalone === true ||
+    window.matchMedia("(display-mode: standalone)").matches;
+  if (isStandalone) return null;
+  if (/iPhone|iPad/.test(ua)) return "ios";
+  return null; // android mode set when beforeinstallprompt fires
 }
 
 export function IosInstallPrompt() {
-  const [show, setShow] = useState(false);
+  const [mode, setMode] = useState<Mode>(null);
+  const deferredPrompt = useRef<Event & { prompt(): Promise<void> } | null>(null);
 
   useEffect(() => {
-    const wasDismissed = sessionStorage.getItem(DISMISSED_KEY) === "true";
-    if (!wasDismissed && isIosSafari()) {
-      setShow(true);
+    if (localStorage.getItem(DISMISSED_KEY) === "true") return;
+
+    const detectedMode = detectMode();
+    if (detectedMode === "ios") {
+      setMode("ios");
+      return;
     }
+
+    function handleBeforeInstall(e: Event) {
+      e.preventDefault();
+      deferredPrompt.current = e as Event & { prompt(): Promise<void> };
+      setMode("android");
+    }
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
   }, []);
 
   function handleDismiss() {
-    sessionStorage.setItem(DISMISSED_KEY, "true");
-    setShow(false);
+    localStorage.setItem(DISMISSED_KEY, "true");
+    setMode(null);
   }
 
-  if (!show) return null;
+  async function handleInstall() {
+    if (!deferredPrompt.current) return;
+    await deferredPrompt.current.prompt();
+    deferredPrompt.current = null;
+    setMode(null);
+  }
+
+  if (!mode) return null;
 
   return (
     <div
@@ -58,22 +82,56 @@ export function IosInstallPrompt() {
             marginBottom: 3,
           }}
         >
-          Add to Home Screen
+          Skip Chrome every time
         </div>
-        <div
-          style={{
-            fontFamily: "var(--font-inter), sans-serif",
-            fontSize: 12,
-            color: "rgba(255,255,255,0.6)",
-            lineHeight: 1.4,
-          }}
-        >
-          For the best experience — tap{" "}
-          <span style={{ color: "rgba(255,255,255,0.85)" }}>Share</span> then{" "}
-          <span style={{ color: "rgba(255,255,255,0.85)" }}>
-            &apos;Add to Home Screen&apos;
-          </span>
-        </div>
+        {mode === "ios" ? (
+          <div
+            style={{
+              fontFamily: "var(--font-inter), sans-serif",
+              fontSize: 12,
+              color: "rgba(255,255,255,0.6)",
+              lineHeight: 1.4,
+            }}
+          >
+            Tap{" "}
+            <span style={{ color: "rgba(255,255,255,0.85)" }}>Share</span> →{" "}
+            <span style={{ color: "rgba(255,255,255,0.85)" }}>
+              Add to Home Screen
+            </span>{" "}
+            to install the app.
+          </div>
+        ) : (
+          <div
+            style={{
+              fontFamily: "var(--font-inter), sans-serif",
+              fontSize: 12,
+              color: "rgba(255,255,255,0.6)",
+              lineHeight: 1.4,
+            }}
+          >
+            Install FantasyWC as an app — open it directly from your home
+            screen.
+          </div>
+        )}
+        {mode === "android" && (
+          <button
+            onClick={handleInstall}
+            style={{
+              marginTop: 8,
+              padding: "6px 14px",
+              borderRadius: 8,
+              background: "var(--g3)",
+              border: "none",
+              color: "#fff",
+              fontFamily: "var(--font-saira), sans-serif",
+              fontWeight: 700,
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            Install
+          </button>
+        )}
       </div>
       <button
         onClick={handleDismiss}

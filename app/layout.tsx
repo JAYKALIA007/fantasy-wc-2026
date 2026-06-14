@@ -47,6 +47,7 @@ export default function RootLayout({
     >
       <head>
         <link rel="preconnect" href="https://ihwsprtjkpvujjxsedcz.supabase.co" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#0e1726" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
