@@ -20,6 +20,7 @@ interface Match {
   venue_city?: string | null;
   venue_name?: string | null;
   allow_late_predictions: boolean;
+  prediction_deadline: string | null;
   home_nation: Nation;
   away_nation: Nation;
   round: { id: string; name: string } | null;
@@ -297,10 +298,13 @@ export default function PredictClient({
   const minsUntilKickoff = (new Date(match.kickoff_time).getTime() - Date.now()) / 60000;
   const countdown = formatCountdown(match.kickoff_time);
   const isLate = match.allow_late_predictions && minsUntilKickoff < 0;
-  const isLocked = isLate ? minsUntilKickoff < -45 : minsUntilKickoff < 0;
+  const deadlineMs = match.prediction_deadline ? new Date(match.prediction_deadline).getTime() : null;
+  const isLocked = isLate
+    ? (deadlineMs !== null ? Date.now() > deadlineMs : minsUntilKickoff < -45)
+    : minsUntilKickoff < 0;
   const isSaved = savedMatches.has(match.id);
   const isLast = currentIndex === matches.length - 1;
-  const lateMinLeft = isLate ? Math.max(0, Math.ceil(45 + minsUntilKickoff)) : 0;
+  const lateMinLeft = isLate && deadlineMs ? Math.max(0, Math.ceil((deadlineMs - Date.now()) / 60000)) : Math.max(0, Math.ceil(45 + minsUntilKickoff));
 
   return (
     <div

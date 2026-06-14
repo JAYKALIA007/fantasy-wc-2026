@@ -285,9 +285,10 @@ export function AdminClient({
   async function toggleLatePredictions(matchId: number, current: boolean) {
     const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
+    const deadline = current ? null : new Date(Date.now() + 45 * 60 * 1000).toISOString();
     const { error } = await supabase
       .from("matches")
-      .update({ allow_late_predictions: !current })
+      .update({ allow_late_predictions: !current, prediction_deadline: deadline })
       .eq("id", matchId);
     if (error) {
       setStatusMsg(`Error: ${error.message}`);

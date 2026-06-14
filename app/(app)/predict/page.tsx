@@ -19,6 +19,7 @@ interface Match {
   venue_city?: string | null;
   venue_name?: string | null;
   allow_late_predictions: boolean;
+  prediction_deadline: string | null;
   home_nation: Nation;
   away_nation: Nation;
   round: { id: string; name: string } | null;
@@ -54,17 +55,16 @@ export default async function PredictPage() {
 
   // Fetch upcoming scheduled matches + any live matches with late predictions open
   const now = new Date().toISOString();
-  const fortyFiveMinAgo = new Date(Date.now() - 45 * 60 * 1000).toISOString();
 
   const { data: matchesRaw } = await supabase
     .from("matches")
     .select(
-      `id, kickoff_time, home_score, away_score, status, group_label, venue_city, venue_name, allow_late_predictions,
+      `id, kickoff_time, home_score, away_score, status, group_label, venue_city, venue_name, allow_late_predictions, prediction_deadline,
        home_nation:home_nation_id(id, name, flag_code, fifa_ranking),
        away_nation:away_nation_id(id, name, flag_code, fifa_ranking),
        round:round_id(id, name)`
     )
-    .or(`and(status.eq.scheduled,kickoff_time.gt.${now}),and(allow_late_predictions.eq.true,kickoff_time.gt.${fortyFiveMinAgo},status.neq.finished)`)
+    .or(`and(status.eq.scheduled,kickoff_time.gt.${now}),and(allow_late_predictions.eq.true,prediction_deadline.gt.${now},status.neq.finished)`)
     .order("kickoff_time", { ascending: true });
 
   const matches: Match[] = (matchesRaw ?? []).map((m) => ({
@@ -77,6 +77,7 @@ export default async function PredictPage() {
     venue_city: m.venue_city as string | null,
     venue_name: m.venue_name as string | null,
     allow_late_predictions: (m.allow_late_predictions as boolean) ?? false,
+    prediction_deadline: (m.prediction_deadline as string | null) ?? null,
     home_nation: Array.isArray(m.home_nation)
       ? (m.home_nation[0] as Nation)
       : (m.home_nation as Nation),
