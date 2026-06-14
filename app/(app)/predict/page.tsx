@@ -53,9 +53,18 @@ export default async function PredictPage() {
     redirect("/onboarding");
   }
 
-  // Fetch matches within 48h window + any live matches with late predictions open
+  // Cutoff = end of tomorrow IST (start of day after tomorrow in IST, converted to UTC)
   const now = new Date().toISOString();
-  const cutoff = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+  const istOffsetMs = 5.5 * 60 * 60 * 1000;
+  const nowIST = new Date(Date.now() + istOffsetMs);
+  const cutoff = new Date(
+    Date.UTC(nowIST.getUTCFullYear(), nowIST.getUTCMonth(), nowIST.getUTCDate() + 2, 0, 0, 0, 0) - istOffsetMs
+  ).toISOString();
+
+  // Label for next unlock (day after tomorrow in IST)
+  const nextUnlockIST = new Date(new Date(cutoff).getTime() + istOffsetMs);
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const nextUnlockLabel = `${nextUnlockIST.getUTCDate()} ${months[nextUnlockIST.getUTCMonth()]}`;
 
   const { data: matchesRaw } = await supabase
     .from("matches")
@@ -122,6 +131,7 @@ export default async function PredictPage() {
       existingPredictions={existingPredictions}
       leagueId={membership.league_id as string}
       roundLabel={roundLabels[roundName] ?? roundName}
+      nextUnlockLabel={nextUnlockLabel}
     />
   );
 }
