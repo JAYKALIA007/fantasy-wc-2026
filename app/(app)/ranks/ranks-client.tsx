@@ -42,7 +42,7 @@ interface Props {
 }
 
 const roundLabels: Record<string, string> = {
-  "a0000000-0000-0000-0000-000000000001": "GS",
+  "a0000000-0000-0000-0000-000000000001": "Group Stage",
   "a0000000-0000-0000-0000-000000000002": "R16",
 };
 
@@ -333,6 +333,17 @@ export default function RanksClient({
         }}
       >
         <RankList rows={rows} currentUserId={currentUserId} />
+
+        <div
+          style={{
+            fontFamily: "var(--font-inter), sans-serif",
+            fontSize: 11,
+            color: "var(--n5)",
+            paddingLeft: 4,
+          }}
+        >
+          n = nation bonus pts
+        </div>
 
         {/* Fantasy coming soon */}
         <div
