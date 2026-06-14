@@ -15,6 +15,7 @@ interface Match {
   id: number;
   kickoff_time: string;
   group_label?: string | null;
+  venue_city?: string | null;
   home_nation: Nation;
   away_nation: Nation;
 }
@@ -104,7 +105,7 @@ export default async function HomePage() {
     supabase
       .from("matches")
       .select(
-        `id, kickoff_time, group_label,
+        `id, kickoff_time, group_label, venue_city,
          home_nation:home_nation_id(id, name, flag_code, fifa_ranking),
          away_nation:away_nation_id(id, name, flag_code, fifa_ranking)`
       )
@@ -157,6 +158,7 @@ export default async function HomePage() {
         id: nextMatchRaw.id as number,
         kickoff_time: nextMatchRaw.kickoff_time as string,
         group_label: nextMatchRaw.group_label as string | null,
+        venue_city: nextMatchRaw.venue_city as string | null,
         home_nation: Array.isArray(nextMatchRaw.home_nation)
           ? (nextMatchRaw.home_nation[0] as Nation)
           : (nextMatchRaw.home_nation as Nation),
@@ -443,6 +445,17 @@ export default async function HomePage() {
                 >
                   {toIST(nextMatch.kickoff_time)}
                 </span>
+                {nextMatch.venue_city && (
+                  <span
+                    style={{
+                      fontFamily: "var(--font-inter), sans-serif",
+                      fontSize: 11,
+                      color: "var(--n5)",
+                    }}
+                  >
+                    · {nextMatch.venue_city}
+                  </span>
+                )}
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                 <FlagChip code={nextMatch.away_nation.flag_code} />

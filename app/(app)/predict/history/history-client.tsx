@@ -1,7 +1,14 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import type { PredictionRecord } from "./page";
+
+interface MatchSummary {
+  total: number;
+  correct: number;
+  exact: number;
+}
 
 interface Props {
   predictions: PredictionRecord[];
@@ -58,6 +65,31 @@ function PointsBadge({ points }: { points: number | null }) {
 }
 
 export default function HistoryClient({ predictions }: Props) {
+  const [summaries, setSummaries] = useState<Record<number, MatchSummary>>({});
+
+  useEffect(() => {
+    const finishedIds = predictions
+      .filter((p) => p.match.status === "finished")
+      .map((p) => p.match_id);
+
+    if (finishedIds.length === 0) return;
+
+    void Promise.all(
+      finishedIds.map((id) =>
+        fetch(`/api/match-predictions-summary?match_id=${id}`)
+          .then((r) => r.json() as Promise<MatchSummary>)
+          .then((data) => ({ id, data }))
+          .catch(() => null)
+      )
+    ).then((results) => {
+      const map: Record<number, MatchSummary> = {};
+      for (const res of results) {
+        if (res) map[res.id] = res.data;
+      }
+      setSummaries(map);
+    });
+  }, [predictions]);
+
   return (
     <div
       style={{
@@ -233,7 +265,20 @@ export default function HistoryClient({ predictions }: Props) {
                     {toIST(p.match.kickoff_time)}
                   </span>
                 </div>
-                <PointsBadge points={isFinished ? (p.points ?? 0) : null} />
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+                  <PointsBadge points={isFinished ? (p.points ?? 0) : null} />
+                  {isFinished && summaries[p.match_id] && summaries[p.match_id].total > 0 && (
+                    <span
+                      style={{
+                        fontFamily: "var(--font-inter), sans-serif",
+                        fontSize: 11,
+                        color: "var(--n5)",
+                      }}
+                    >
+                      {summaries[p.match_id].correct}/{summaries[p.match_id].total} correct
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Teams row */}

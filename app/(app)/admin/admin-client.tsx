@@ -86,6 +86,7 @@ export function AdminClient({
   const [scoreInputs, setScoreInputs] = useState<Record<number, { home: string; away: string }>>({});
   const [savingMatchId, setSavingMatchId] = useState<number | null>(null);
   const [matchStatusMsgs, setMatchStatusMsgs] = useState<Record<number, string>>({});
+  const [matchSummaries, setMatchSummaries] = useState<Record<number, { total: number; correct: number; exact: number }>>({});
 
   useEffect(() => {
     void (async () => {
@@ -120,6 +121,25 @@ export function AdminClient({
       });
       setMatches(rows);
       setMatchesLoading(false);
+
+      // Fetch prediction summaries for finished matches
+      const finishedIds = rows.filter((r) => r.status === "finished").map((r) => r.id);
+      if (finishedIds.length > 0) {
+        void Promise.all(
+          finishedIds.map((id) =>
+            fetch(`/api/match-predictions-summary?match_id=${id}`)
+              .then((r) => r.json() as Promise<{ total: number; correct: number; exact: number }>)
+              .then((d) => ({ id, d }))
+              .catch(() => null)
+          )
+        ).then((results) => {
+          const map: Record<number, { total: number; correct: number; exact: number }> = {};
+          for (const res of results) {
+            if (res) map[res.id] = res.d;
+          }
+          setMatchSummaries(map);
+        });
+      }
     })();
   }, []);
 
@@ -166,6 +186,11 @@ export function AdminClient({
               : m
           )
         );
+        // Refresh summary for this match
+        void fetch(`/api/match-predictions-summary?match_id=${matchId}`)
+          .then((r) => r.json() as Promise<{ total: number; correct: number; exact: number }>)
+          .then((d) => setMatchSummaries((prev) => ({ ...prev, [matchId]: d })))
+          .catch(() => null);
         setScoreInputs((prev) => {
           const next = { ...prev };
           delete next[matchId];
@@ -683,10 +708,18 @@ export function AdminClient({
                       <div
                         style={{
                           display: "flex",
-                          alignItems: "center",
-                          gap: 6,
+                          flexDirection: "column",
+                          alignItems: "flex-end",
+                          gap: 4,
                         }}
                       >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
                         <span
                           style={{
                             fontFamily: "var(--font-anton), sans-serif",
@@ -720,6 +753,18 @@ export function AdminClient({
                         >
                           Edit
                         </button>
+                        </div>
+                        {matchSummaries[m.id] && matchSummaries[m.id].total > 0 && (
+                          <span
+                            style={{
+                              fontFamily: "var(--font-inter), sans-serif",
+                              fontSize: 11,
+                              color: "var(--n5)",
+                            }}
+                          >
+                            {matchSummaries[m.id].total} predictions · {matchSummaries[m.id].correct} correct · {matchSummaries[m.id].exact} exact
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>

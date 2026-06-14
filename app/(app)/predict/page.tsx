@@ -16,6 +16,8 @@ interface Match {
   away_score: number | null;
   status: string;
   group_label?: string | null;
+  venue_city?: string | null;
+  venue_name?: string | null;
   home_nation: Nation;
   away_nation: Nation;
   round: { id: string; name: string } | null;
@@ -55,7 +57,7 @@ export default async function PredictPage() {
   const { data: matchesRaw } = await supabase
     .from("matches")
     .select(
-      `id, kickoff_time, home_score, away_score, status, group_label,
+      `id, kickoff_time, home_score, away_score, status, group_label, venue_city, venue_name,
        home_nation:home_nation_id(id, name, flag_code, fifa_ranking),
        away_nation:away_nation_id(id, name, flag_code, fifa_ranking),
        round:round_id(id, name)`
@@ -71,6 +73,8 @@ export default async function PredictPage() {
     away_score: m.away_score as number | null,
     status: m.status as string,
     group_label: m.group_label as string | null,
+    venue_city: m.venue_city as string | null,
+    venue_name: m.venue_name as string | null,
     home_nation: Array.isArray(m.home_nation)
       ? (m.home_nation[0] as Nation)
       : (m.home_nation as Nation),

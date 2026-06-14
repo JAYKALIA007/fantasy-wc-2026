@@ -19,6 +19,7 @@ interface MatchInfo {
 
 export interface PredictionRecord {
   id: string;
+  match_id: number;
   predicted_home_score: number;
   predicted_away_score: number;
   points: number | null;
@@ -51,7 +52,7 @@ export default async function HistoryPage() {
   const { data: predsRaw } = await supabase
     .from("predictions")
     .select(
-      `id, predicted_home_score, predicted_away_score, points,
+      `id, match_id, predicted_home_score, predicted_away_score, points,
        match:match_id(kickoff_time, home_score, away_score, status, group_label,
          home_nation:home_nation_id(name, flag_code),
          away_nation:away_nation_id(name, flag_code))`
@@ -72,6 +73,7 @@ export default async function HistoryPage() {
     };
     return {
       id: p.id as string,
+      match_id: p.match_id as number,
       predicted_home_score: p.predicted_home_score as number,
       predicted_away_score: p.predicted_away_score as number,
       points: p.points as number | null,

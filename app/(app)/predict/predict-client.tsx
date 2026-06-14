@@ -17,6 +17,8 @@ interface Match {
   away_score: number | null;
   status: string;
   group_label?: string | null;
+  venue_city?: string | null;
+  venue_name?: string | null;
   home_nation: Nation;
   away_nation: Nation;
   round: { id: string; name: string } | null;
@@ -582,6 +584,21 @@ export default function PredictClient({
               )}
             </div>
           </div>
+
+          {/* Venue */}
+          {match.venue_city && (
+            <div
+              style={{
+                marginTop: 12,
+                textAlign: "center",
+                fontFamily: "var(--font-inter), sans-serif",
+                fontSize: 11,
+                color: "var(--n5)",
+              }}
+            >
+              · {match.venue_city}
+            </div>
+          )}
 
           {/* Divider */}
           <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "16px 0 12px" }} />
