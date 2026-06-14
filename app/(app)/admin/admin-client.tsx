@@ -35,6 +35,7 @@ interface MatchRow {
   away_score: number | null;
   status: string;
   allow_late_predictions: boolean;
+  auto_fetched: boolean;
   home_nation: { name: string } | null;
   away_nation: { name: string } | null;
 }
@@ -96,7 +97,7 @@ export function AdminClient({
       const { data } = await supabase
         .from("matches")
         .select(
-          "id, kickoff_time, home_score, away_score, status, allow_late_predictions, home_nation:nations!matches_home_nation_id_fkey(name), away_nation:nations!matches_away_nation_id_fkey(name)"
+          "id, kickoff_time, home_score, away_score, status, allow_late_predictions, auto_fetched, home_nation:nations!matches_home_nation_id_fkey(name), away_nation:nations!matches_away_nation_id_fkey(name)"
         )
         .eq("round_id", GROUP_STAGE_ROUND_ID)
         .order("kickoff_time", { ascending: false });
@@ -117,6 +118,7 @@ export function AdminClient({
           away_score: m.away_score as number | null,
           status: m.status as string,
           allow_late_predictions: (m.allow_late_predictions as boolean) ?? false,
+          auto_fetched: (m.auto_fetched as boolean) ?? false,
           home_nation: homeNation,
           away_nation: awayNation,
         };
@@ -794,6 +796,21 @@ export function AdminClient({
                           Edit
                         </button>
                         </div>
+                        {m.auto_fetched && (
+                          <span
+                            style={{
+                              fontFamily: "var(--font-inter), sans-serif",
+                              fontSize: 11,
+                              color: "#b45309",
+                              background: "#fef3c7",
+                              border: "1px solid #fcd34d",
+                              borderRadius: 6,
+                              padding: "2px 8px",
+                            }}
+                          >
+                            Auto-fetched from ESPN. If incorrect, edit manually.
+                          </span>
+                        )}
                         {matchSummaries[m.id] && matchSummaries[m.id].total > 0 && (
                           <span
                             style={{
