@@ -51,8 +51,8 @@ export default async function PredictPage() {
     redirect("/onboarding");
   }
 
-  // Fetch upcoming scheduled matches (with at least 30 min to kickoff)
-  const thirtyMinFromNow = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  // Fetch upcoming scheduled matches (not yet kicked off)
+  const thirtyMinFromNow = new Date().toISOString();
 
   const { data: matchesRaw } = await supabase
     .from("matches")

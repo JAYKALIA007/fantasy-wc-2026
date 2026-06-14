@@ -16,10 +16,11 @@ export default async function OnboardingPage() {
 
   if (membership) redirect("/");
 
+  const inviteCode = process.env.NEXT_PUBLIC_LEAGUE_INVITE_CODE ?? "";
   const { data: league } = await supabase
     .from("leagues")
     .select("id, name, max_players")
-    .eq("invite_code", "wc2026")
+    .eq("invite_code", inviteCode)
     .single();
 
   const { data: nations } = await supabase

@@ -30,7 +30,6 @@ interface RankRow {
 
 interface Props {
   initialRows: RankRow[];
-  initialFantasyRows: RankRow[];
   currentUserId: string;
   leagueName: string;
   memberCount: number;
@@ -38,11 +37,8 @@ interface Props {
   roundId: string;
   myRank: number | null;
   myPoints: number;
-  myFantasyRank: number | null;
-  myFantasyPoints: number;
   myPrimaryNationName: string;
   leaderPoints: number;
-  fantasyLeaderPoints: number;
 }
 
 const roundLabels: Record<string, string> = {
@@ -161,14 +157,7 @@ function RankList({
             </div>
 
             {/* Nation flag */}
-            <span
-              style={{
-                fontSize: 22,
-                flexShrink: 0,
-              }}
-            >
-              {flag}
-            </span>
+            <span style={{ fontSize: 22, flexShrink: 0 }}>{flag}</span>
 
             {/* Movement + points */}
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -209,7 +198,6 @@ function RankList({
 
 export default function RanksClient({
   initialRows,
-  initialFantasyRows,
   currentUserId,
   leagueName,
   memberCount,
@@ -217,19 +205,13 @@ export default function RanksClient({
   roundId,
   myRank,
   myPoints,
-  myFantasyRank,
-  myFantasyPoints,
   myPrimaryNationName,
   leaderPoints,
-  fantasyLeaderPoints,
 }: Props) {
   const [rows, setRows] = useState<RankRow[]>(initialRows);
-  const [fantasyRows, setFantasyRows] = useState<RankRow[]>(initialFantasyRows);
-  const [activeTab, setActiveTab] = useState<"prediction" | "fantasy">("prediction");
 
   const supabase = createClient();
 
-  // Prediction scores realtime
   useEffect(() => {
     const channel = supabase
       .channel("prediction_round_scores_changes")
@@ -242,7 +224,7 @@ export default function RanksClient({
           filter: `league_id=eq.${leagueId}`,
         },
         () => {
-          void fetchLatestPredictionScores();
+          void fetchLatestScores();
         }
       )
       .subscribe();
@@ -253,31 +235,7 @@ export default function RanksClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leagueId, roundId]);
 
-  // Fantasy scores realtime
-  useEffect(() => {
-    const channel = supabase
-      .channel("fantasy_round_scores_changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "fantasy_round_scores",
-          filter: `league_id=eq.${leagueId}`,
-        },
-        () => {
-          void fetchLatestFantasyScores();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leagueId, roundId]);
-
-  const fetchLatestPredictionScores = async () => {
+  const fetchLatestScores = async () => {
     const { data: scores } = await supabase
       .from("prediction_round_scores")
       .select("user_id, total_points")
@@ -306,43 +264,11 @@ export default function RanksClient({
     }
   };
 
-  const fetchLatestFantasyScores = async () => {
-    const { data: scores } = await supabase
-      .from("fantasy_round_scores")
-      .select("user_id, total_points")
-      .eq("league_id", leagueId)
-      .eq("round_id", roundId)
-      .order("total_points", { ascending: false });
-
-    if (scores) {
-      setFantasyRows((prev) => {
-        const updated = prev.map((row) => {
-          const score = (scores as { user_id: string; total_points: number }[]).find(
-            (s) => s.user_id === row.user_id
-          );
-          return score ? { ...row, total_points: score.total_points } : row;
-        });
-        return [...updated].sort((a, b) => b.total_points - a.total_points);
-      });
-    }
-  };
-
-  const activeRows = activeTab === "prediction" ? rows : fantasyRows;
-
-  const myCurrentRow = activeRows.find((r) => r.user_id === currentUserId);
-  const myCurrentRank = myCurrentRow
-    ? activeRows.indexOf(myCurrentRow) + 1
-    : activeTab === "prediction"
-    ? myRank
-    : myFantasyRank;
-  const myCurrentPoints =
-    myCurrentRow?.total_points ??
-    (activeTab === "prediction" ? myPoints : myFantasyPoints);
-  const currentLeaderPoints =
-    activeRows[0]?.total_points ??
-    (activeTab === "prediction" ? leaderPoints : fantasyLeaderPoints);
+  const myCurrentRow = rows.find((r) => r.user_id === currentUserId);
+  const myCurrentRank = myCurrentRow ? rows.indexOf(myCurrentRow) + 1 : myRank;
+  const myCurrentPoints = myCurrentRow?.total_points ?? myPoints;
+  const currentLeaderPoints = rows[0]?.total_points ?? leaderPoints;
   const gapToLeader = currentLeaderPoints - myCurrentPoints;
-
   const myFlag = FLAG_EMOJI[myPrimaryNationName] ?? "🌐";
 
   return (
@@ -406,52 +332,45 @@ export default function RanksClient({
           gap: 12,
         }}
       >
-        {/* Segment control */}
+        <RankList rows={rows} currentUserId={currentUserId} />
+
+        {/* Fantasy coming soon */}
         <div
           style={{
+            background: "var(--surf)",
+            borderRadius: 14,
+            padding: "16px 14px",
+            boxShadow: "var(--sh-sm)",
             display: "flex",
-            background: "var(--n2)",
-            borderRadius: 12,
-            padding: 3,
+            alignItems: "center",
+            justifyContent: "space-between",
+            opacity: 0.6,
           }}
         >
-          {(["prediction", "fantasy"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+          <div>
+            <div
               style={{
-                flex: 1,
-                padding: "8px 0",
-                borderRadius: 10,
-                border: "none",
-                background: activeTab === tab ? "#fff" : "transparent",
-                color: activeTab === tab ? "var(--n0)" : "var(--n6)",
-                fontFamily: "var(--font-saira), sans-serif",
-                fontWeight: 700,
-                fontSize: 13,
-                cursor: "pointer",
-                textTransform: "capitalize",
-                transition: "background 0.15s",
+                fontFamily: "var(--font-anton), sans-serif",
+                fontSize: 15,
+                color: "var(--n0)",
+                letterSpacing: 0.3,
               }}
             >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
+              Fantasy League
+            </div>
+            <div
+              style={{
+                fontFamily: "var(--font-saira), sans-serif",
+                fontSize: 12,
+                color: "var(--n5)",
+                marginTop: 2,
+              }}
+            >
+              Coming soon
+            </div>
+          </div>
+          <span style={{ fontSize: 22 }}>🔒</span>
         </div>
-
-        <p
-          style={{
-            fontFamily: "var(--font-inter), sans-serif",
-            fontSize: 12,
-            color: "var(--n5)",
-            margin: 0,
-            padding: "0 2px",
-          }}
-        >
-          Two separate competitions — each has its own winner.
-        </p>
-
-        <RankList rows={activeRows} currentUserId={currentUserId} />
 
         <div style={{ flex: 1 }} />
       </div>

@@ -1,17 +1,22 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function CallbackClientPage() {
+function CallbackInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteCode = searchParams.get("invite") ?? "";
 
   useEffect(() => {
     const run = async () => {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push("/join?error=auth_failed"); return; }
+      if (!user) {
+        router.push(`/join?code=${inviteCode}&error=auth_failed`);
+        return;
+      }
 
       const { data: settings } = await supabase
         .from("platform_settings")
@@ -41,7 +46,7 @@ export default function CallbackClientPage() {
       }
     };
     run();
-  }, [router]);
+  }, [router, inviteCode]);
 
   return (
     <main style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", backgroundColor: "var(--n0)" }}>
@@ -49,5 +54,17 @@ export default function CallbackClientPage() {
         Setting up your account…
       </p>
     </main>
+  );
+}
+
+export default function CallbackClientPage() {
+  return (
+    <Suspense fallback={
+      <main style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", backgroundColor: "var(--n0)" }}>
+        <p style={{ color: "var(--n6)", fontFamily: "var(--font-saira), sans-serif", fontSize: 16 }}>Setting up your account…</p>
+      </main>
+    }>
+      <CallbackInner />
+    </Suspense>
   );
 }

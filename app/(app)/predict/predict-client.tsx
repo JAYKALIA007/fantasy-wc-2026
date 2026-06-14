@@ -162,6 +162,7 @@ export default function PredictClient({
 }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
   const [savedMatches, setSavedMatches] = useState<Set<number>>(new Set());
 
   // Build initial score state from existing predictions
@@ -214,9 +215,11 @@ export default function PredictClient({
 
       if (res.ok) {
         setSavedMatches((prev) => new Set(prev).add(currentMatch.id));
-        if (currentIndex < matches.length - 1) {
-          setCurrentIndex((i) => i + 1);
-        }
+        setSavedFlash(true);
+        setTimeout(() => {
+          setSavedFlash(false);
+          if (currentIndex < matches.length - 1) setCurrentIndex((i) => i + 1);
+        }, 900);
       } else {
         const data = await res.json() as { error?: string };
         alert(data.error ?? "Failed to save prediction");
@@ -622,13 +625,28 @@ export default function PredictClient({
             <b style={{ color: "var(--g4)" }}>3 pts</b>
           </div>
 
-          {isSaved && (
+          {savedFlash && (
             <div
               style={{
                 marginTop: 10,
                 textAlign: "center",
                 fontFamily: "var(--font-saira), sans-serif",
                 fontWeight: 700,
+                fontSize: 13,
+                color: "var(--g3)",
+                animation: "fadeIn 0.2s ease",
+              }}
+            >
+              ✓ Saved!
+            </div>
+          )}
+          {!savedFlash && isSaved && (
+            <div
+              style={{
+                marginTop: 10,
+                textAlign: "center",
+                fontFamily: "var(--font-saira), sans-serif",
+                fontWeight: 600,
                 fontSize: 12,
                 color: "var(--g4)",
               }}
