@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   // Fetch match to check deadline
   const { data: match, error: matchError } = await supabase
     .from("matches")
-    .select("kickoff_time, status")
+    .select("kickoff_time, status, allow_late_predictions, prediction_deadline")
     .eq("id", match_id)
     .single();
 
@@ -46,7 +46,12 @@ export async function POST(request: Request) {
   const minUntilKickoff = msUntilKickoff / 1000 / 60;
 
   if (minUntilKickoff < 0) {
-    return Response.json({ error: "Submission deadline passed" }, { status: 403 });
+    const allowLate = match.allow_late_predictions as boolean;
+    const deadline = match.prediction_deadline as string | null;
+    const deadlineOk = allowLate && deadline && now < new Date(deadline);
+    if (!deadlineOk) {
+      return Response.json({ error: "Submission deadline passed" }, { status: 403 });
+    }
   }
 
   // Upsert prediction
