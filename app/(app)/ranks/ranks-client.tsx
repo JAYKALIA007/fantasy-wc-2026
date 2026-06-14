@@ -2,19 +2,30 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { FifaCard } from "@/components/fifa-card";
-import type { CardType } from "@/components/fifa-card";
+
+const FLAG_EMOJI: Record<string, string> = {
+  "Argentina": "🇦🇷", "France": "🇫🇷", "Spain": "🇪🇸", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+  "Brazil": "🇧🇷", "Portugal": "🇵🇹", "Netherlands": "🇳🇱", "Belgium": "🇧🇪",
+  "Colombia": "🇨🇴", "Uruguay": "🇺🇾", "Croatia": "🇭🇷", "Germany": "🇩🇪",
+  "Morocco": "🇲🇦", "United States": "🇺🇸", "Japan": "🇯🇵", "Mexico": "🇲🇽",
+  "Switzerland": "🇨🇭", "Senegal": "🇸🇳", "Iran": "🇮🇷", "South Korea": "🇰🇷",
+  "Egypt": "🇪🇬", "Australia": "🇦🇺", "Austria": "🇦🇹", "Ecuador": "🇪🇨",
+  "Türkiye": "🇹🇷", "Norway": "🇳🇴", "Sweden": "🇸🇪", "Tunisia": "🇹🇳",
+  "Algeria": "🇩🇿", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "Ivory Coast": "🇨🇮", "Paraguay": "🇵🇾",
+  "Saudi Arabia": "🇸🇦", "Czechia": "🇨🇿", "Ghana": "🇬🇭", "South Africa": "🇿🇦",
+  "Qatar": "🇶🇦", "Congo DR": "🇨🇩", "Panama": "🇵🇦", "Bosnia-Herzegovina": "🇧🇦",
+  "Canada": "🇨🇦", "Uzbekistan": "🇺🇿", "Cape Verde": "🇨🇻", "Iraq": "🇮🇶",
+  "Jordan": "🇯🇴", "New Zealand": "🇳🇿", "Haiti": "🇭🇹", "Curaçao": "🇨🇼",
+};
 
 interface RankRow {
   user_id: string;
   total_points: number;
+  prediction_points: number;
+  nation_bonus: number;
   profile_name: string;
-  initials: string;
-  position: string;
-  card_type: string;
-  rating: number;
-  footballer_name: string;
-  nation: string;
+  primary_nation_id: number | null;
+  primary_nation_name: string;
 }
 
 interface Props {
@@ -29,12 +40,7 @@ interface Props {
   myPoints: number;
   myFantasyRank: number | null;
   myFantasyPoints: number;
-  myInitials: string;
-  myPosition: string;
-  myCardType: CardType;
-  myRating: number;
-  myFootballerName: string;
-  myNation: string;
+  myPrimaryNationName: string;
   leaderPoints: number;
   fantasyLeaderPoints: number;
 }
@@ -99,6 +105,7 @@ function RankList({
         const rank = idx + 1;
         const isMe = row.user_id === currentUserId;
         const movement: "up" | "dn" | "eq" = "eq";
+        const flag = FLAG_EMOJI[row.primary_nation_name] ?? "🌐";
 
         return (
           <div
@@ -125,17 +132,6 @@ function RankList({
             >
               {rank}
             </span>
-
-            {/* Avatar */}
-            <FifaCard
-              initials={row.initials}
-              rating={row.rating}
-              position={row.position}
-              nation={row.nation}
-              footballerName={row.footballer_name}
-              cardType={(row.card_type as CardType) ?? "gold"}
-              size="sm"
-            />
 
             {/* Name */}
             <div
@@ -164,20 +160,45 @@ function RankList({
               )}
             </div>
 
+            {/* Nation flag */}
+            <span
+              style={{
+                fontSize: 22,
+                flexShrink: 0,
+              }}
+            >
+              {flag}
+            </span>
+
             {/* Movement + points */}
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <MovementArrow movement={movement} />
-              <span
-                style={{
-                  fontFamily: "var(--font-anton), sans-serif",
-                  fontSize: 17,
-                  minWidth: 36,
-                  textAlign: "right",
-                  color: "var(--n0)",
-                }}
-              >
-                {row.total_points}
-              </span>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                <span
+                  style={{
+                    fontFamily: "var(--font-anton), sans-serif",
+                    fontSize: 17,
+                    minWidth: 36,
+                    textAlign: "right",
+                    color: "var(--n0)",
+                  }}
+                >
+                  {row.total_points}
+                </span>
+                {row.nation_bonus > 0 && (
+                  <span
+                    style={{
+                      fontFamily: "var(--font-saira), sans-serif",
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: "var(--g2)",
+                      textAlign: "right",
+                    }}
+                  >
+                    +{row.nation_bonus}n
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -198,12 +219,7 @@ export default function RanksClient({
   myPoints,
   myFantasyRank,
   myFantasyPoints,
-  myInitials,
-  myPosition,
-  myCardType,
-  myRating,
-  myFootballerName,
-  myNation,
+  myPrimaryNationName,
   leaderPoints,
   fantasyLeaderPoints,
 }: Props) {
@@ -275,7 +291,15 @@ export default function RanksClient({
           const score = (scores as { user_id: string; total_points: number }[]).find(
             (s) => s.user_id === row.user_id
           );
-          return score ? { ...row, total_points: score.total_points } : row;
+          if (score) {
+            const newPredictionPoints = score.total_points;
+            return {
+              ...row,
+              prediction_points: newPredictionPoints,
+              total_points: newPredictionPoints + row.nation_bonus,
+            };
+          }
+          return row;
         });
         return [...updated].sort((a, b) => b.total_points - a.total_points);
       });
@@ -318,6 +342,8 @@ export default function RanksClient({
     activeRows[0]?.total_points ??
     (activeTab === "prediction" ? leaderPoints : fantasyLeaderPoints);
   const gapToLeader = currentLeaderPoints - myCurrentPoints;
+
+  const myFlag = FLAG_EMOJI[myPrimaryNationName] ?? "🌐";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -475,16 +501,8 @@ export default function RanksClient({
             >
               {gapToLeader > 0 ? `${gapToLeader} pts from leader` : "You're leading!"}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <FifaCard
-                initials={myInitials}
-                rating={myRating}
-                position={myPosition}
-                nation={myNation}
-                footballerName={myFootballerName}
-                cardType={myCardType}
-                size="sm"
-              />
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 24 }}>{myFlag}</span>
               <span
                 style={{
                   fontFamily: "var(--font-saira), sans-serif",

@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   const msUntilKickoff = kickoff.getTime() - now.getTime();
   const minUntilKickoff = msUntilKickoff / 1000 / 60;
 
-  if (minUntilKickoff < 30) {
+  if (minUntilKickoff < 0) {
     return Response.json({ error: "Submission deadline passed" }, { status: 403 });
   }
 
