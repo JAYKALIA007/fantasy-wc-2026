@@ -7,6 +7,7 @@ interface Nation {
   id: number;
   name: string;
   flag_code: string;
+  fifa_ranking?: number | null;
 }
 
 interface Match {
@@ -15,6 +16,7 @@ interface Match {
   home_score: number | null;
   away_score: number | null;
   status: string;
+  group_label?: string | null;
   home_nation: Nation;
   away_nation: Nation;
   round: { id: string; name: string } | null;
@@ -366,6 +368,18 @@ export default function PredictClient({
         >
           {currentIndex + 1}/{matches.length}
         </div>
+        <Link
+          href="/predict/history"
+          style={{
+            fontFamily: "var(--font-inter), sans-serif",
+            fontSize: 12,
+            color: "var(--g4)",
+            textDecoration: "none",
+            flexShrink: 0,
+          }}
+        >
+          History →
+        </Link>
       </div>
 
       {/* Progress dots */}
@@ -426,6 +440,28 @@ export default function PredictClient({
             boxShadow: "var(--sh-md)",
           }}
         >
+          {/* Group chip */}
+          {match.group_label && (
+            <div style={{ marginBottom: 12 }}>
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "2px 8px",
+                  borderRadius: 6,
+                  background: "rgba(255,255,255,0.08)",
+                  fontFamily: "var(--font-saira), sans-serif",
+                  fontWeight: 700,
+                  fontSize: 11,
+                  color: "var(--n5)",
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
+                }}
+              >
+                GROUP {match.group_label}
+              </span>
+            </div>
+          )}
+
           {/* Date + countdown */}
           <div
             style={{
@@ -491,6 +527,17 @@ export default function PredictClient({
                 >
                   {match.home_nation.name}
                 </span>
+                {match.home_nation.fifa_ranking != null && (
+                  <span
+                    style={{
+                      fontFamily: "var(--font-inter), sans-serif",
+                      fontSize: 11,
+                      color: "var(--n6)",
+                    }}
+                  >
+                    #{match.home_nation.fifa_ranking}
+                  </span>
+                )}
               </div>
               {isLocked ? (
                 <LockedBadge />
@@ -516,6 +563,17 @@ export default function PredictClient({
                 >
                   {match.away_nation.name}
                 </span>
+                {match.away_nation.fifa_ranking != null && (
+                  <span
+                    style={{
+                      fontFamily: "var(--font-inter), sans-serif",
+                      fontSize: 11,
+                      color: "var(--n6)",
+                    }}
+                  >
+                    #{match.away_nation.fifa_ranking}
+                  </span>
+                )}
               </div>
               {isLocked ? (
                 <LockedBadge />

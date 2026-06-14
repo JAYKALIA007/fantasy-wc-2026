@@ -8,11 +8,13 @@ interface Nation {
   id: number;
   name: string;
   flag_code: string;
+  fifa_ranking?: number | null;
 }
 
 interface Match {
   id: number;
   kickoff_time: string;
+  group_label?: string | null;
   home_nation: Nation;
   away_nation: Nation;
 }
@@ -82,36 +84,79 @@ export default async function HomePage() {
   }
 
   const leagueId = membership.league_id as string;
-
-  // Check if user is league creator
-  const { data: leagueData } = await supabase
-    .from("leagues")
-    .select("creator_id")
-    .eq("id", leagueId)
-    .maybeSingle();
-
-  const isCreator = leagueData?.creator_id === user.id;
-
-  // Get next upcoming match
   const thirtyMinFromNow = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
-  const { data: nextMatchRaw } = await supabase
-    .from("matches")
-    .select(
-      `id, kickoff_time,
-       home_nation:home_nation_id(id, name, flag_code),
-       away_nation:away_nation_id(id, name, flag_code)`
-    )
-    .eq("status", "scheduled")
-    .gt("kickoff_time", thirtyMinFromNow)
-    .order("kickoff_time", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  // Run all remaining queries in parallel
+  const [
+    leagueDataResult,
+    nextMatchResult,
+    openMatchesResult,
+    predScoreResult,
+    totalMembersResult,
+    fantasyScoreResult,
+  ] = await Promise.all([
+    supabase
+      .from("leagues")
+      .select("creator_id")
+      .eq("id", leagueId)
+      .maybeSingle(),
 
+    supabase
+      .from("matches")
+      .select(
+        `id, kickoff_time, group_label,
+         home_nation:home_nation_id(id, name, flag_code, fifa_ranking),
+         away_nation:away_nation_id(id, name, flag_code, fifa_ranking)`
+      )
+      .eq("status", "scheduled")
+      .gt("kickoff_time", thirtyMinFromNow)
+      .order("kickoff_time", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+
+    supabase
+      .from("matches")
+      .select(
+        `id, kickoff_time, group_label,
+         home_nation:home_nation_id(id, name, flag_code, fifa_ranking),
+         away_nation:away_nation_id(id, name, flag_code, fifa_ranking)`
+      )
+      .eq("status", "scheduled")
+      .gt("kickoff_time", thirtyMinFromNow)
+      .order("kickoff_time", { ascending: true })
+      .limit(5),
+
+    supabase
+      .from("prediction_round_scores")
+      .select("total_points")
+      .eq("user_id", user.id)
+      .eq("league_id", leagueId)
+      .eq("round_id", "a0000000-0000-0000-0000-000000000002")
+      .maybeSingle(),
+
+    supabase
+      .from("league_members")
+      .select("id", { count: "exact", head: true })
+      .eq("league_id", leagueId),
+
+    supabase
+      .from("fantasy_round_scores")
+      .select("total_points")
+      .eq("user_id", user.id)
+      .eq("league_id", leagueId)
+      .eq("round_id", "a0000000-0000-0000-0000-000000000002")
+      .maybeSingle(),
+  ]);
+
+  const leagueData = leagueDataResult.data;
+  const isCreator = leagueData?.creator_id === user.id;
+
+  const nextMatchRaw = nextMatchResult.data;
   const nextMatch: Match | null = nextMatchRaw
     ? {
         id: nextMatchRaw.id as number,
         kickoff_time: nextMatchRaw.kickoff_time as string,
+        group_label: nextMatchRaw.group_label as string | null,
         home_nation: Array.isArray(nextMatchRaw.home_nation)
           ? (nextMatchRaw.home_nation[0] as Nation)
           : (nextMatchRaw.home_nation as Nation),
@@ -121,22 +166,11 @@ export default async function HomePage() {
       }
     : null;
 
-  // Get open matches that need predictions
-  const { data: openMatchesRaw } = await supabase
-    .from("matches")
-    .select(
-      `id, kickoff_time,
-       home_nation:home_nation_id(id, name, flag_code),
-       away_nation:away_nation_id(id, name, flag_code)`
-    )
-    .eq("status", "scheduled")
-    .gt("kickoff_time", thirtyMinFromNow)
-    .order("kickoff_time", { ascending: true })
-    .limit(5);
-
+  const openMatchesRaw = openMatchesResult.data;
   const openMatches: Match[] = (openMatchesRaw ?? []).map((m) => ({
     id: m.id as number,
     kickoff_time: m.kickoff_time as string,
+    group_label: m.group_label as string | null,
     home_nation: Array.isArray(m.home_nation)
       ? (m.home_nation[0] as Nation)
       : (m.home_nation as Nation),
@@ -145,7 +179,31 @@ export default async function HomePage() {
       : (m.away_nation as Nation),
   }));
 
-  // Get existing predictions count for these open matches
+  const predScore = predScoreResult.data;
+  const totalMembers = totalMembersResult.count;
+  const fantasyScore = fantasyScoreResult.data;
+
+  // These two rank queries depend on predScore/fantasyScore results, run in parallel
+  const [higherCountResult, fantasyHigherCountResult] = await Promise.all([
+    supabase
+      .from("prediction_round_scores")
+      .select("id", { count: "exact", head: true })
+      .eq("league_id", leagueId)
+      .eq("round_id", "a0000000-0000-0000-0000-000000000002")
+      .gt("total_points", predScore?.total_points ?? -1),
+
+    supabase
+      .from("fantasy_round_scores")
+      .select("id", { count: "exact", head: true })
+      .eq("league_id", leagueId)
+      .eq("round_id", "a0000000-0000-0000-0000-000000000002")
+      .gt("total_points", fantasyScore?.total_points ?? -1),
+  ]);
+
+  const predRank = predScore ? (higherCountResult.count ?? 0) + 1 : null;
+  const fantasyRank = fantasyScore ? (fantasyHigherCountResult.count ?? 0) + 1 : null;
+
+  // Get existing predictions count for open matches
   const openMatchIds = openMatches.map((m) => m.id);
   let predictedCount = 0;
   if (openMatchIds.length > 0) {
@@ -158,47 +216,6 @@ export default async function HomePage() {
     predictedCount = count ?? 0;
   }
   const unpredictedCount = openMatches.length - predictedCount;
-
-  // Get prediction rank
-  const { data: predScore } = await supabase
-    .from("prediction_round_scores")
-    .select("total_points")
-    .eq("user_id", user.id)
-    .eq("league_id", leagueId)
-    .eq("round_id", "a0000000-0000-0000-0000-000000000002")
-    .maybeSingle();
-
-  const { count: higherCount } = await supabase
-    .from("prediction_round_scores")
-    .select("id", { count: "exact", head: true })
-    .eq("league_id", leagueId)
-    .eq("round_id", "a0000000-0000-0000-0000-000000000002")
-    .gt("total_points", predScore?.total_points ?? -1);
-
-  const predRank = predScore ? (higherCount ?? 0) + 1 : null;
-
-  const { count: totalMembers } = await supabase
-    .from("league_members")
-    .select("id", { count: "exact", head: true })
-    .eq("league_id", leagueId);
-
-  // Get fantasy rank
-  const { data: fantasyScore } = await supabase
-    .from("fantasy_round_scores")
-    .select("total_points")
-    .eq("user_id", user.id)
-    .eq("league_id", leagueId)
-    .eq("round_id", "a0000000-0000-0000-0000-000000000002")
-    .maybeSingle();
-
-  const { count: fantasyHigherCount } = await supabase
-    .from("fantasy_round_scores")
-    .select("id", { count: "exact", head: true })
-    .eq("league_id", leagueId)
-    .eq("round_id", "a0000000-0000-0000-0000-000000000002")
-    .gt("total_points", fantasyScore?.total_points ?? -1);
-
-  const fantasyRank = fantasyScore ? (fantasyHigherCount ?? 0) + 1 : null;
 
   // Avatar
   type AvatarFields = { initials: string; position: string; card_type: string; rating: number; footballer_name: string; nation: string };
@@ -333,18 +350,20 @@ export default async function HomePage() {
                 marginBottom: 14,
               }}
             >
-              <span
-                style={{
-                  fontFamily: "var(--font-saira), sans-serif",
-                  fontWeight: 700,
-                  fontSize: 12,
-                  color: "rgba(255,255,255,0.5)",
-                  textTransform: "uppercase",
-                  letterSpacing: 0.8,
-                }}
-              >
-                Round of 16 · Next match
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span
+                  style={{
+                    fontFamily: "var(--font-saira), sans-serif",
+                    fontWeight: 700,
+                    fontSize: 12,
+                    color: "rgba(255,255,255,0.5)",
+                    textTransform: "uppercase",
+                    letterSpacing: 0.8,
+                  }}
+                >
+                  {nextMatch.group_label ? `Group ${nextMatch.group_label} · ` : ""}Next match
+                </span>
+              </div>
               <div
                 style={{
                   display: "flex",
@@ -393,6 +412,17 @@ export default async function HomePage() {
                 >
                   {nextMatch.home_nation.name}
                 </span>
+                {nextMatch.home_nation.fifa_ranking != null && (
+                  <span
+                    style={{
+                      fontFamily: "var(--font-inter), sans-serif",
+                      fontSize: 11,
+                      color: "var(--n6)",
+                    }}
+                  >
+                    #{nextMatch.home_nation.fifa_ranking}
+                  </span>
+                )}
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
                 <span
@@ -426,6 +456,17 @@ export default async function HomePage() {
                 >
                   {nextMatch.away_nation.name}
                 </span>
+                {nextMatch.away_nation.fifa_ranking != null && (
+                  <span
+                    style={{
+                      fontFamily: "var(--font-inter), sans-serif",
+                      fontSize: 11,
+                      color: "var(--n6)",
+                    }}
+                  >
+                    #{nextMatch.away_nation.fifa_ranking}
+                  </span>
+                )}
               </div>
             </div>
 

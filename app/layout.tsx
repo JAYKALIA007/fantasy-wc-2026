@@ -46,6 +46,7 @@ export default function RootLayout({
       className={`${anton.variable} ${sairaCondensed.variable} ${inter.variable} h-full`}
     >
       <head>
+        <link rel="preconnect" href="https://ihwsprtjkpvujjxsedcz.supabase.co" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#0e1726" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
