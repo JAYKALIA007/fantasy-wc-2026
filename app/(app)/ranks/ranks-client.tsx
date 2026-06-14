@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { FifaCard } from "@/components/fifa-card";
+import type { CardType } from "@/components/fifa-card";
 
 interface RankRow {
   user_id: string;
@@ -9,6 +11,10 @@ interface RankRow {
   profile_name: string;
   initials: string;
   position: string;
+  card_type: string;
+  rating: number;
+  footballer_name: string;
+  nation: string;
 }
 
 interface Props {
@@ -25,53 +31,18 @@ interface Props {
   myFantasyPoints: number;
   myInitials: string;
   myPosition: string;
+  myCardType: CardType;
+  myRating: number;
+  myFootballerName: string;
+  myNation: string;
   leaderPoints: number;
   fantasyLeaderPoints: number;
 }
-
-const posColors: Record<string, string> = {
-  gk: "#e07b00",
-  def: "#2459b8",
-  mid: "#7140c8",
-  fwd: "#c82030",
-  neu: "#566278",
-};
 
 const roundLabels: Record<string, string> = {
   "a0000000-0000-0000-0000-000000000001": "GS",
   "a0000000-0000-0000-0000-000000000002": "R16",
 };
-
-function Avatar({
-  initials,
-  position,
-  size,
-}: {
-  initials: string;
-  position: string;
-  size: number;
-}) {
-  const color = posColors[position] ?? "#566278";
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: color,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "#fff",
-        fontFamily: "var(--font-anton), sans-serif",
-        fontSize: size * 0.38,
-        flexShrink: 0,
-      }}
-    >
-      {initials}
-    </div>
-  );
-}
 
 function MovementArrow({ movement }: { movement: "up" | "dn" | "eq" }) {
   if (movement === "up") {
@@ -156,7 +127,15 @@ function RankList({
             </span>
 
             {/* Avatar */}
-            <Avatar initials={row.initials} position={row.position} size={28} />
+            <FifaCard
+              initials={row.initials}
+              rating={row.rating}
+              position={row.position}
+              nation={row.nation}
+              footballerName={row.footballer_name}
+              cardType={(row.card_type as CardType) ?? "gold"}
+              size="sm"
+            />
 
             {/* Name */}
             <div
@@ -221,6 +200,10 @@ export default function RanksClient({
   myFantasyPoints,
   myInitials,
   myPosition,
+  myCardType,
+  myRating,
+  myFootballerName,
+  myNation,
   leaderPoints,
   fantasyLeaderPoints,
 }: Props) {
@@ -493,7 +476,15 @@ export default function RanksClient({
               {gapToLeader > 0 ? `${gapToLeader} pts from leader` : "You're leading!"}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <Avatar initials={myInitials} position={myPosition} size={20} />
+              <FifaCard
+                initials={myInitials}
+                rating={myRating}
+                position={myPosition}
+                nation={myNation}
+                footballerName={myFootballerName}
+                cardType={myCardType}
+                size="sm"
+              />
               <span
                 style={{
                   fontFamily: "var(--font-saira), sans-serif",

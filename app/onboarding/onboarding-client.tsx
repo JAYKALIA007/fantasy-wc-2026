@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { FifaCard } from "@/components/fifa-card";
+import type { CardType } from "@/components/fifa-card";
 
 type Avatar = {
   id: string;
@@ -10,6 +12,8 @@ type Avatar = {
   initials: string;
   nation: string;
   position: string;
+  card_type: CardType;
+  rating: number;
 };
 
 type League = {
@@ -25,13 +29,6 @@ type Props = {
   avatars: Avatar[];
   initialTakenAvatarIds: string[];
   memberCount: number;
-};
-
-const POS_COLORS: Record<string, string> = {
-  gk: "var(--pos-gk)",
-  def: "var(--pos-def)",
-  mid: "var(--pos-mid)",
-  fwd: "var(--pos-fwd)",
 };
 
 const STEP_LABELS = [
@@ -521,36 +518,35 @@ function AvatarTile({
   isSelected: boolean;
   onSelect?: () => void;
 }) {
-  const posColor = POS_COLORS[avatar.position] ?? "var(--n4)";
-
   return (
     <div
       onClick={onSelect}
       style={{
         position: "relative",
-        backgroundColor: "var(--surf)",
-        borderRadius: 12,
-        padding: "12px 8px",
         display: "flex",
-        flexDirection: "column",
+        justifyContent: "center",
         alignItems: "center",
-        gap: 6,
-        boxShadow: "var(--sh-sm)",
-        cursor: isTaken ? "not-allowed" : "pointer",
-        border: isSelected
-          ? "2px solid var(--g3)"
-          : "2px solid transparent",
-        opacity: isTaken ? 0.5 : 1,
-        transition: "border-color 0.15s, opacity 0.15s",
       }}
     >
+      <FifaCard
+        initials={avatar.initials}
+        rating={avatar.rating}
+        position={avatar.position}
+        nation={avatar.nation}
+        footballerName={avatar.footballer_name}
+        cardType={avatar.card_type}
+        size="md"
+        selected={isSelected}
+        taken={isTaken}
+      />
+
       {/* Selected checkmark badge */}
       {isSelected && (
         <div
           style={{
             position: "absolute",
-            top: 6,
-            right: 6,
+            top: 5,
+            right: 5,
             width: 18,
             height: 18,
             borderRadius: "50%",
@@ -558,6 +554,7 @@ function AvatarTile({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            zIndex: 2,
           }}
         >
           <svg
@@ -572,87 +569,6 @@ function AvatarTile({
           >
             <path d="M1.5 5l2.5 2.5 4.5-4.5" />
           </svg>
-        </div>
-      )}
-
-      {/* Initials circle */}
-      <div
-        style={{
-          width: 48,
-          height: 48,
-          borderRadius: "50%",
-          backgroundColor: posColor,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#fff",
-          fontFamily: "var(--font-anton), sans-serif",
-          fontSize: 18,
-          letterSpacing: 1,
-          flexShrink: 0,
-        }}
-      >
-        {avatar.initials}
-      </div>
-
-      {/* Name */}
-      <span
-        style={{
-          fontSize: 11,
-          fontFamily: "var(--font-inter), sans-serif",
-          fontWeight: 600,
-          color: "var(--n1)",
-          textAlign: "center",
-          lineHeight: 1.2,
-        }}
-      >
-        {avatar.footballer_name}
-      </span>
-
-      {/* Nation chip */}
-      <div
-        style={{
-          fontSize: 10,
-          fontFamily: "var(--font-saira), sans-serif",
-          fontWeight: 700,
-          color: "var(--g2)",
-          backgroundColor: "var(--gbg)",
-          borderLeft: "3px solid var(--g3)",
-          padding: "2px 6px",
-          borderRadius: "0 4px 4px 0",
-          letterSpacing: "0.5px",
-        }}
-      >
-        {avatar.nation}
-      </div>
-
-      {/* Taken overlay */}
-      {isTaken && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            borderRadius: 12,
-            backgroundColor: "rgba(255,255,255,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <span
-            style={{
-              fontSize: 10,
-              fontFamily: "var(--font-saira), sans-serif",
-              fontWeight: 800,
-              color: "var(--n4)",
-              letterSpacing: "1.5px",
-              backgroundColor: "var(--n8)",
-              padding: "3px 8px",
-              borderRadius: 4,
-            }}
-          >
-            TAKEN
-          </span>
         </div>
       )}
     </div>

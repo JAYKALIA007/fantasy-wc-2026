@@ -34,8 +34,8 @@ export default async function OnboardingPage() {
   // Fetch all avatars
   const { data: avatars } = await supabase
     .from("avatars")
-    .select("id, footballer_name, initials, nation, position")
-    .order("footballer_name");
+    .select("id, footballer_name, initials, nation, position, card_type, rating")
+    .order("rating", { ascending: false });
 
   // Fetch taken avatar IDs in this league
   const { data: takenRows } = await supabase

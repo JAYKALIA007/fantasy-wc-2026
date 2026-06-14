@@ -23,9 +23,9 @@ const tabs: TabItem[] = [
     badge: true,
   },
   {
-    href: "/squad",
-    label: "Squad",
-    icon: (active) => <JerseyIcon active={active} />,
+    href: "/nation",
+    label: "Nation",
+    icon: (active) => <GlobeIcon active={active} />,
   },
   {
     href: "/ranks",
@@ -121,7 +121,7 @@ function TargetIcon({ active }: { active: boolean }) {
   );
 }
 
-function JerseyIcon({ active }: { active: boolean }) {
+function GlobeIcon({ active }: { active: boolean }) {
   const color = active ? "var(--g4)" : "var(--n6)";
   return (
     <svg
@@ -131,12 +131,10 @@ function JerseyIcon({ active }: { active: boolean }) {
       fill="none"
       aria-hidden="true"
     >
-      <path
-        d="M6 3L2 7l3 2v11h14V9l3-2-4-4c0 0-1.5 3-4 3S6 3 6 3z"
-        stroke={color}
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
+      <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.8" />
+      <ellipse cx="12" cy="12" rx="4" ry="9" stroke={color} strokeWidth="1.5" />
+      <line x1="3" y1="9" x2="21" y2="9" stroke={color} strokeWidth="1.5" />
+      <line x1="3" y1="15" x2="21" y2="15" stroke={color} strokeWidth="1.5" />
     </svg>
   );
 }

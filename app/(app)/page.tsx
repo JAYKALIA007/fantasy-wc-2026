@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { FifaCard } from "@/components/fifa-card";
+import type { CardType } from "@/components/fifa-card";
 
 interface Nation {
   id: number;
@@ -71,7 +73,7 @@ export default async function HomePage() {
   // Check if onboarded
   const { data: membership } = await supabase
     .from("league_members")
-    .select("league_id, profile_name, avatar_id, avatars(initials, position)")
+    .select("league_id, profile_name, avatar_id, avatars(initials, position, card_type, rating, footballer_name, nation)")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -199,21 +201,14 @@ export default async function HomePage() {
   const fantasyRank = fantasyScore ? (fantasyHigherCount ?? 0) + 1 : null;
 
   // Avatar
+  type AvatarFields = { initials: string; position: string; card_type: string; rating: number; footballer_name: string; nation: string };
   const avatarRaw = membership.avatars as unknown;
   const avatar =
     avatarRaw && !Array.isArray(avatarRaw)
-      ? (avatarRaw as { initials: string; position: string })
+      ? (avatarRaw as AvatarFields)
       : Array.isArray(avatarRaw) && (avatarRaw as unknown[]).length > 0
-      ? (avatarRaw as { initials: string; position: string }[])[0]
+      ? (avatarRaw as AvatarFields[])[0]
       : null;
-
-  const posColors: Record<string, string> = {
-    gk: "#e07b00",
-    def: "#2459b8",
-    mid: "#7140c8",
-    fwd: "#c82030",
-  };
-  const posColor = avatar ? (posColors[avatar.position] ?? "#566278") : "#566278";
 
   return (
     <div
@@ -306,22 +301,15 @@ export default async function HomePage() {
             </Link>
           )}
           {avatar && (
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: "50%",
-                background: posColor,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                fontFamily: "var(--font-anton), sans-serif",
-                fontSize: 13,
-              }}
-            >
-              {avatar.initials}
-            </div>
+            <FifaCard
+              initials={avatar.initials}
+              rating={avatar.rating}
+              position={avatar.position}
+              nation={avatar.nation}
+              footballerName={avatar.footballer_name}
+              cardType={(avatar.card_type as CardType) ?? "gold"}
+              size="sm"
+            />
           )}
         </div>
       </div>

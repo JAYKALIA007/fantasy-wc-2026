@@ -8,6 +8,10 @@ interface RankRow {
   profile_name: string;
   initials: string;
   position: string;
+  card_type: string;
+  rating: number;
+  footballer_name: string;
+  nation: string;
 }
 
 export default async function RanksPage() {
@@ -24,7 +28,7 @@ export default async function RanksPage() {
   // Get league membership with avatar
   const { data: membership } = await supabase
     .from("league_members")
-    .select("league_id, profile_name, avatar_id, avatars(initials, position)")
+    .select("league_id, profile_name, avatar_id, avatars(initials, position, card_type, rating, footballer_name, nation)")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -47,19 +51,24 @@ export default async function RanksPage() {
   // Get all members with their avatars
   const { data: allMembers } = await supabase
     .from("league_members")
-    .select("user_id, profile_name, avatars(initials, position)")
+    .select("user_id, profile_name, avatars(initials, position, card_type, rating, footballer_name, nation)")
     .eq("league_id", membership.league_id);
 
   // Build member map
-  const memberMap = new Map<string, { profile_name: string; initials: string; position: string }>();
+  type AvatarFields = { initials: string; position: string; card_type: string; rating: number; footballer_name: string; nation: string };
+  const memberMap = new Map<string, { profile_name: string; initials: string; position: string; card_type: string; rating: number; footballer_name: string; nation: string }>();
   for (const m of allMembers ?? []) {
     const av = Array.isArray(m.avatars)
-      ? (m.avatars[0] as { initials: string; position: string } | undefined)
-      : (m.avatars as { initials: string; position: string } | null | undefined);
+      ? (m.avatars[0] as AvatarFields | undefined)
+      : (m.avatars as AvatarFields | null | undefined);
     memberMap.set(m.user_id as string, {
       profile_name: m.profile_name as string,
       initials: av?.initials ?? "??",
       position: av?.position ?? "mid",
+      card_type: av?.card_type ?? "gold",
+      rating: av?.rating ?? 85,
+      footballer_name: av?.footballer_name ?? "",
+      nation: av?.nation ?? "",
     });
   }
 
@@ -81,6 +90,10 @@ export default async function RanksPage() {
       profile_name: member?.profile_name ?? "Unknown",
       initials: member?.initials ?? "??",
       position: member?.position ?? "mid",
+      card_type: member?.card_type ?? "gold",
+      rating: member?.rating ?? 85,
+      footballer_name: member?.footballer_name ?? "",
+      nation: member?.nation ?? "",
     };
   });
 
@@ -93,6 +106,10 @@ export default async function RanksPage() {
         profile_name: member.profile_name,
         initials: member.initials,
         position: member.position,
+        card_type: member.card_type,
+        rating: member.rating,
+        footballer_name: member.footballer_name,
+        nation: member.nation,
       });
     }
   }
@@ -118,6 +135,10 @@ export default async function RanksPage() {
       profile_name: member?.profile_name ?? "Unknown",
       initials: member?.initials ?? "??",
       position: member?.position ?? "mid",
+      card_type: member?.card_type ?? "gold",
+      rating: member?.rating ?? 85,
+      footballer_name: member?.footballer_name ?? "",
+      nation: member?.nation ?? "",
     };
   });
 
@@ -130,6 +151,10 @@ export default async function RanksPage() {
         profile_name: member.profile_name,
         initials: member.initials,
         position: member.position,
+        card_type: member.card_type,
+        rating: member.rating,
+        footballer_name: member.footballer_name,
+        nation: member.nation,
       });
     }
   }
@@ -140,12 +165,13 @@ export default async function RanksPage() {
   const fantasyLeaderPoints = fantasyRankRows[0]?.total_points ?? 0;
 
   // Avatar
+  type FullAvatarFields = { initials: string; position: string; card_type: string; rating: number; footballer_name: string; nation: string };
   const avatarRaw = membership.avatars as unknown;
   const myAvatar =
     avatarRaw && !Array.isArray(avatarRaw)
-      ? (avatarRaw as { initials: string; position: string })
+      ? (avatarRaw as FullAvatarFields)
       : Array.isArray(avatarRaw) && (avatarRaw as unknown[]).length > 0
-      ? (avatarRaw as { initials: string; position: string }[])[0]
+      ? (avatarRaw as FullAvatarFields[])[0]
       : null;
 
   return (
@@ -163,6 +189,10 @@ export default async function RanksPage() {
       myFantasyPoints={myFantasyRankRow?.total_points ?? 0}
       myInitials={myAvatar?.initials ?? "??"}
       myPosition={myAvatar?.position ?? "mid"}
+      myCardType={(myAvatar?.card_type as import("@/components/fifa-card").CardType) ?? "gold"}
+      myRating={myAvatar?.rating ?? 85}
+      myFootballerName={myAvatar?.footballer_name ?? ""}
+      myNation={myAvatar?.nation ?? ""}
       leaderPoints={leaderPoints}
       fantasyLeaderPoints={fantasyLeaderPoints}
     />
