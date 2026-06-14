@@ -47,9 +47,12 @@ export default async function RulesPage() {
         </p>
         <Row label="Correct result" value="+1 pt" sub="Right winner or draw, wrong scoreline" />
         <Row label="Exact score" value="+3 pts" sub="Right scoreline — home and away goals" />
-        <div style={{ padding: "10px 0" }}>
+        <div style={{ padding: "10px 0", display: "flex", flexDirection: "column", gap: 8 }}>
           <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>
-            ⏱ Predictions lock at exact kickoff time. No 30-minute buffer — plan ahead.
+            ⏱ Predictions lock at kickoff. Submit before the match starts.
+          </p>
+          <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>
+            ⚡ Occasionally the admin may open a short late window after kickoff — look for the gold countdown chip on the predict screen.
           </p>
         </div>
       </Section>
@@ -57,12 +60,17 @@ export default async function RulesPage() {
       {/* Nation picking */}
       <Section title="🏳️  Nation picks">
         <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 10px", lineHeight: 1.5 }}>
-          You picked two nations during sign-up. Every time they play, you earn bonus points on top of your prediction score.
+          You picked two nations during sign-up — these are locked and cannot be changed. Every time they play, you earn bonus points on top of your prediction score.
         </p>
-        <Row label="Primary nation wins" value="+3 pts" sub="Your #1 pick (top 15)" />
-        <Row label="Wildcard nation wins" value="+6 pts" sub="2× — first come first serve pick" />
+        <Row label="Primary nation wins" value="+3 pts" sub="Your #1 pick — any ranked nation" />
         <Row label="Primary draws" value="+1 pt" sub="Group stage draws count" />
+        <Row label="Wildcard nation wins" value="+6 pts" sub="2× — must be ranked outside top 15" />
         <Row label="Wildcard draws" value="+2 pts" sub="2× multiplier applies" />
+        <div style={{ padding: "8px 0 2px" }}>
+          <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>
+            🎯 Wildcard picks are first come, first serve — each nation can only be claimed by one player.
+          </p>
+        </div>
         <div style={{ height: 8 }} />
         <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>Round progression bonuses</p>
         <Row label="Reach Round of 32" value="+5 pts" />
