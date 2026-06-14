@@ -16,6 +16,8 @@ interface Match {
   kickoff_time: string;
   group_label?: string | null;
   venue_city?: string | null;
+  allow_late_predictions: boolean;
+  prediction_deadline: string | null;
   home_nation: Nation;
   away_nation: Nation;
 }
@@ -85,7 +87,7 @@ export default async function HomePage() {
   }
 
   const leagueId = membership.league_id as string;
-  const thirtyMinFromNow = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
 
   // Run all remaining queries in parallel
   const [
@@ -94,7 +96,6 @@ export default async function HomePage() {
     openMatchesResult,
     predScoreResult,
     totalMembersResult,
-    fantasyScoreResult,
   ] = await Promise.all([
     supabase
       .from("leagues")
@@ -105,12 +106,11 @@ export default async function HomePage() {
     supabase
       .from("matches")
       .select(
-        `id, kickoff_time, group_label, venue_city,
+        `id, kickoff_time, group_label, venue_city, allow_late_predictions, prediction_deadline,
          home_nation:home_nation_id(id, name, flag_code, fifa_ranking),
          away_nation:away_nation_id(id, name, flag_code, fifa_ranking)`
       )
-      .eq("status", "scheduled")
-      .gt("kickoff_time", thirtyMinFromNow)
+      .or(`and(status.eq.scheduled,kickoff_time.gt.${now}),and(allow_late_predictions.eq.true,prediction_deadline.gt.${now},status.neq.finished)`)
       .order("kickoff_time", { ascending: true })
       .limit(1)
       .maybeSingle(),
@@ -118,12 +118,11 @@ export default async function HomePage() {
     supabase
       .from("matches")
       .select(
-        `id, kickoff_time, group_label,
+        `id, kickoff_time, group_label, allow_late_predictions, prediction_deadline,
          home_nation:home_nation_id(id, name, flag_code, fifa_ranking),
          away_nation:away_nation_id(id, name, flag_code, fifa_ranking)`
       )
-      .eq("status", "scheduled")
-      .gt("kickoff_time", thirtyMinFromNow)
+      .or(`and(status.eq.scheduled,kickoff_time.gt.${now}),and(allow_late_predictions.eq.true,prediction_deadline.gt.${now},status.neq.finished)`)
       .order("kickoff_time", { ascending: true })
       .limit(5),
 
@@ -132,21 +131,13 @@ export default async function HomePage() {
       .select("total_points")
       .eq("user_id", user.id)
       .eq("league_id", leagueId)
-      .eq("round_id", "a0000000-0000-0000-0000-000000000002")
+      .eq("round_id", "a0000000-0000-0000-0000-000000000001")
       .maybeSingle(),
 
     supabase
       .from("league_members")
       .select("id", { count: "exact", head: true })
       .eq("league_id", leagueId),
-
-    supabase
-      .from("fantasy_round_scores")
-      .select("total_points")
-      .eq("user_id", user.id)
-      .eq("league_id", leagueId)
-      .eq("round_id", "a0000000-0000-0000-0000-000000000002")
-      .maybeSingle(),
   ]);
 
   const leagueData = leagueDataResult.data;
@@ -159,6 +150,8 @@ export default async function HomePage() {
         kickoff_time: nextMatchRaw.kickoff_time as string,
         group_label: nextMatchRaw.group_label as string | null,
         venue_city: nextMatchRaw.venue_city as string | null,
+        allow_late_predictions: (nextMatchRaw.allow_late_predictions as boolean) ?? false,
+        prediction_deadline: (nextMatchRaw.prediction_deadline as string | null) ?? null,
         home_nation: Array.isArray(nextMatchRaw.home_nation)
           ? (nextMatchRaw.home_nation[0] as Nation)
           : (nextMatchRaw.home_nation as Nation),
@@ -173,6 +166,8 @@ export default async function HomePage() {
     id: m.id as number,
     kickoff_time: m.kickoff_time as string,
     group_label: m.group_label as string | null,
+    allow_late_predictions: (m.allow_late_predictions as boolean) ?? false,
+    prediction_deadline: (m.prediction_deadline as string | null) ?? null,
     home_nation: Array.isArray(m.home_nation)
       ? (m.home_nation[0] as Nation)
       : (m.home_nation as Nation),
@@ -183,27 +178,15 @@ export default async function HomePage() {
 
   const predScore = predScoreResult.data;
   const totalMembers = totalMembersResult.count;
-  const fantasyScore = fantasyScoreResult.data;
 
-  // These two rank queries depend on predScore/fantasyScore results, run in parallel
-  const [higherCountResult, fantasyHigherCountResult] = await Promise.all([
-    supabase
-      .from("prediction_round_scores")
-      .select("id", { count: "exact", head: true })
-      .eq("league_id", leagueId)
-      .eq("round_id", "a0000000-0000-0000-0000-000000000002")
-      .gt("total_points", predScore?.total_points ?? -1),
-
-    supabase
-      .from("fantasy_round_scores")
-      .select("id", { count: "exact", head: true })
-      .eq("league_id", leagueId)
-      .eq("round_id", "a0000000-0000-0000-0000-000000000002")
-      .gt("total_points", fantasyScore?.total_points ?? -1),
-  ]);
+  const higherCountResult = await supabase
+    .from("prediction_round_scores")
+    .select("id", { count: "exact", head: true })
+    .eq("league_id", leagueId)
+    .eq("round_id", "a0000000-0000-0000-0000-000000000001")
+    .gt("total_points", predScore?.total_points ?? -1);
 
   const predRank = predScore ? (higherCountResult.count ?? 0) + 1 : null;
-  const fantasyRank = fantasyScore ? (fantasyHigherCountResult.count ?? 0) + 1 : null;
 
   // Get existing predictions count for open matches
   const openMatchIds = openMatches.map((m) => m.id);
@@ -366,31 +349,39 @@ export default async function HomePage() {
                   {nextMatch.group_label ? `Group ${nextMatch.group_label} · ` : ""}Next match
                 </span>
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                  padding: "3px 9px",
-                  borderRadius: 20,
-                  background: "rgba(226,59,72,0.18)",
-                  color: "var(--r3)",
-                  fontFamily: "var(--font-saira), sans-serif",
-                  fontWeight: 700,
-                  fontSize: 11,
-                }}
-              >
-                <span
+              {nextMatch.allow_late_predictions && new Date(nextMatch.kickoff_time) < new Date() ? (
+                <div
                   style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    background: "var(--r2)",
-                    display: "inline-block",
+                    padding: "3px 9px",
+                    borderRadius: 20,
+                    background: "rgba(245,181,10,0.18)",
+                    color: "var(--gold)",
+                    fontFamily: "var(--font-saira), sans-serif",
+                    fontWeight: 700,
+                    fontSize: 11,
                   }}
-                />
-                {formatCountdown(nextMatch.kickoff_time)}
-              </div>
+                >
+                  ⚡ In progress · predict now
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    padding: "3px 9px",
+                    borderRadius: 20,
+                    background: "rgba(226,59,72,0.18)",
+                    color: "var(--r3)",
+                    fontFamily: "var(--font-saira), sans-serif",
+                    fontWeight: 700,
+                    fontSize: 11,
+                  }}
+                >
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--r2)", display: "inline-block" }} />
+                  {formatCountdown(nextMatch.kickoff_time)}
+                </div>
+              )}
             </div>
 
             <div
@@ -523,113 +514,30 @@ export default async function HomePage() {
           </div>
         )}
 
-        {/* Rank tiles */}
-        <div style={{ display: "flex", gap: 10 }}>
-          <Link
-            href="/ranks"
-            style={{
-              flex: 1,
-              background: "var(--surf)",
-              borderRadius: 14,
-              padding: "14px 14px",
-              boxShadow: "var(--sh-sm)",
-              textDecoration: "none",
-            }}
-          >
-            <div
-              style={{
-                fontFamily: "var(--font-inter), sans-serif",
-                fontSize: 12,
-                color: "var(--n5)",
-                marginBottom: 6,
-              }}
-            >
-              Prediction
-            </div>
-            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
-              <span
-                style={{
-                  fontFamily: "var(--font-anton), sans-serif",
-                  fontSize: 28,
-                  color: "var(--n0)",
-                  lineHeight: 1,
-                }}
-              >
-                {predRank !== null ? `#${predRank}` : "--"}
-              </span>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-end",
-                  gap: 2,
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: "var(--font-inter), sans-serif",
-                    fontSize: 12,
-                    color: "var(--n5)",
-                  }}
-                >
-                  /{totalMembers ?? "--"} players
-                </span>
-              </div>
-            </div>
-          </Link>
-          <Link
-            href="/ranks"
-            style={{
-              flex: 1,
-              background: "var(--surf)",
-              borderRadius: 14,
-              padding: "14px 14px",
-              boxShadow: "var(--sh-sm)",
-              textDecoration: "none",
-            }}
-          >
-            <div
-              style={{
-                fontFamily: "var(--font-inter), sans-serif",
-                fontSize: 12,
-                color: "var(--n5)",
-                marginBottom: 6,
-              }}
-            >
-              Fantasy
-            </div>
-            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
-              <span
-                style={{
-                  fontFamily: "var(--font-anton), sans-serif",
-                  fontSize: 28,
-                  color: "var(--n0)",
-                  lineHeight: 1,
-                }}
-              >
-                {fantasyRank !== null ? `#${fantasyRank}` : "--"}
-              </span>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-end",
-                  gap: 2,
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: "var(--font-inter), sans-serif",
-                    fontSize: 12,
-                    color: "var(--n5)",
-                  }}
-                >
-                  /{totalMembers ?? "--"} players
-                </span>
-              </div>
-            </div>
-          </Link>
-        </div>
+        {/* Rank tile */}
+        <Link
+          href="/ranks"
+          style={{
+            background: "var(--surf)",
+            borderRadius: 14,
+            padding: "14px 14px",
+            boxShadow: "var(--sh-sm)",
+            textDecoration: "none",
+            display: "block",
+          }}
+        >
+          <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", marginBottom: 6 }}>
+            Your leaderboard rank
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+            <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 28, color: "var(--n0)", lineHeight: 1 }}>
+              {predRank !== null ? `#${predRank}` : "--"}
+            </span>
+            <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)" }}>
+              /{(totalMembers ?? 1) - 1} players →
+            </span>
+          </div>
+        </Link>
 
         {/* Needs attention */}
         {unpredictedCount > 0 && openMatches.length > 0 && (
@@ -737,12 +645,14 @@ export default async function HomePage() {
                 </div>
               ))}
               {openMatches.length > 3 && (
-                <div
+                <Link
+                  href="/predict"
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: 10,
                     padding: "10px 0 0",
+                    textDecoration: "none",
                   }}
                 >
                   <div
@@ -763,10 +673,10 @@ export default async function HomePage() {
                       color: "var(--n0)",
                     }}
                   >
-                    {openMatches.length - 3} more prediction{openMatches.length - 3 > 1 ? "s" : ""} due
+                    {openMatches.length - 3} more prediction{openMatches.length - 3 > 1 ? "s" : ""} to make
                   </div>
                   <span style={{ color: "var(--n6)", fontSize: 16 }}>›</span>
-                </div>
+                </Link>
               )}
             </div>
           </div>
