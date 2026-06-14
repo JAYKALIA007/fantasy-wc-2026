@@ -48,16 +48,17 @@ export function SignInButton({ inviteCode }: SignInButtonProps) {
     router.push(`/auth/callback-client?invite=${inviteCode}`);
   };
 
-  const inputStyle = {
+  const inputStyle: React.CSSProperties = {
     width: "100%",
-    padding: "12px 14px",
+    padding: "13px 16px",
     borderRadius: 10,
-    border: "1.5px solid var(--n3)",
-    backgroundColor: "var(--n2)",
-    color: "var(--n9)",
+    border: "1.5px solid rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    color: "#eef1f6",
     fontFamily: "var(--font-inter), sans-serif",
     fontSize: 15,
     outline: "none",
+    boxSizing: "border-box",
   };
 
   return (
@@ -71,14 +72,14 @@ export function SignInButton({ inviteCode }: SignInButtonProps) {
           width: "100%",
           padding: "13px 16px",
           borderRadius: 10,
-          border: "1.5px solid var(--n3)",
-          backgroundColor: "var(--n1)",
-          color: "var(--n9)",
+          border: "1.5px solid rgba(255,255,255,0.15)",
+          backgroundColor: "rgba(255,255,255,0.08)",
+          color: "#eef1f6",
           fontFamily: "var(--font-inter), sans-serif",
           fontWeight: 600,
           fontSize: 15,
           cursor: googleLoading ? "not-allowed" : "pointer",
-          opacity: googleLoading ? 0.7 : 1,
+          opacity: googleLoading ? 0.6 : 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -93,14 +94,14 @@ export function SignInButton({ inviteCode }: SignInButtonProps) {
             <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
           </svg>
         )}
-        {googleLoading ? "Redirecting..." : "Continue with Google"}
+        {googleLoading ? "Redirecting…" : "Continue with Google"}
       </button>
 
       {/* Divider */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ flex: 1, height: 1, backgroundColor: "var(--n3)" }} />
-        <span style={{ color: "var(--n5)", fontSize: 12, fontFamily: "var(--font-inter), sans-serif" }}>or</span>
-        <div style={{ flex: 1, height: 1, backgroundColor: "var(--n3)" }} />
+        <div style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.1)" }} />
+        <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, fontFamily: "var(--font-inter), sans-serif" }}>or</span>
+        <div style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.1)" }} />
       </div>
 
       {/* Email / password */}
@@ -123,7 +124,7 @@ export function SignInButton({ inviteCode }: SignInButtonProps) {
         />
 
         {error && (
-          <p style={{ color: "var(--r3)", fontSize: 13, textAlign: "left" }}>{error}</p>
+          <p style={{ color: "#ff6570", fontSize: 13, textAlign: "left", margin: 0 }}>{error}</p>
         )}
 
         <button
@@ -134,8 +135,8 @@ export function SignInButton({ inviteCode }: SignInButtonProps) {
             padding: "13px 16px",
             borderRadius: 10,
             border: "none",
-            backgroundColor: "var(--g3)",
-            color: "#063021",
+            backgroundColor: "var(--gold)",
+            color: "#0a0600",
             fontFamily: "var(--font-saira), sans-serif",
             fontWeight: 800,
             fontSize: 15,
@@ -145,7 +146,7 @@ export function SignInButton({ inviteCode }: SignInButtonProps) {
             opacity: loading ? 0.7 : 1,
           }}
         >
-          {loading ? "..." : isSignUp ? "Create account" : "Sign in"}
+          {loading ? "…" : isSignUp ? "Create account" : "Sign in"}
         </button>
 
         <button
@@ -154,7 +155,7 @@ export function SignInButton({ inviteCode }: SignInButtonProps) {
           style={{
             background: "none",
             border: "none",
-            color: "var(--n6)",
+            color: "rgba(255,255,255,0.35)",
             fontSize: 13,
             cursor: "pointer",
             fontFamily: "var(--font-inter), sans-serif",
