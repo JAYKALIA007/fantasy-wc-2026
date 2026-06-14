@@ -10,6 +10,7 @@ interface RankRow {
   profile_name: string;
   primary_nation_id: number | null;
   primary_nation_name: string;
+  joined_at: string;
 }
 
 export default async function RanksPage() {
@@ -53,7 +54,7 @@ export default async function RanksPage() {
   // Get all members with nation picks, excluding admin
   const { data: allMembersRaw } = await supabase
     .from("league_members")
-    .select("id, user_id, profile_name, primary_nation_id")
+    .select("id, user_id, profile_name, primary_nation_id, joined_at")
     .eq("league_id", leagueId);
 
   const allMembers = (allMembersRaw ?? []).filter(
@@ -61,12 +62,13 @@ export default async function RanksPage() {
   );
 
   const memberIdMap = new Map<string, string>(); // league_member_id -> user_id
-  const memberMap = new Map<string, { profile_name: string; primary_nation_id: number | null }>();
+  const memberMap = new Map<string, { profile_name: string; primary_nation_id: number | null; joined_at: string }>();
   for (const m of allMembers) {
     memberIdMap.set(m.id as string, m.user_id as string);
     memberMap.set(m.user_id as string, {
       profile_name: m.profile_name as string,
       primary_nation_id: m.primary_nation_id as number | null,
+      joined_at: m.joined_at as string,
     });
   }
 
@@ -109,6 +111,7 @@ export default async function RanksPage() {
         profile_name: member.profile_name,
         primary_nation_id: member.primary_nation_id,
         primary_nation_name: "",
+        joined_at: member.joined_at,
       };
     });
 
@@ -124,10 +127,14 @@ export default async function RanksPage() {
         profile_name: member.profile_name,
         primary_nation_id: member.primary_nation_id,
         primary_nation_name: "",
+        joined_at: member.joined_at,
       });
     }
   }
-  rankRows.sort((a, b) => b.total_points - a.total_points);
+  rankRows.sort((a, b) => {
+    if (b.total_points !== a.total_points) return b.total_points - a.total_points;
+    return new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime();
+  });
 
   const myRankRow = rankRows.find((r) => r.user_id === user.id);
   const myRank = myRankRow ? rankRows.indexOf(myRankRow) + 1 : null;

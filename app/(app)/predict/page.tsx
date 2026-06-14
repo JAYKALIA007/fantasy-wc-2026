@@ -53,8 +53,9 @@ export default async function PredictPage() {
     redirect("/onboarding");
   }
 
-  // Fetch upcoming scheduled matches + any live matches with late predictions open
+  // Fetch matches within 48h window + any live matches with late predictions open
   const now = new Date().toISOString();
+  const cutoff = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
   const { data: matchesRaw } = await supabase
     .from("matches")
@@ -64,7 +65,7 @@ export default async function PredictPage() {
        away_nation:away_nation_id(id, name, flag_code, fifa_ranking),
        round:round_id(id, name)`
     )
-    .or(`and(status.eq.scheduled,kickoff_time.gt.${now}),and(allow_late_predictions.eq.true,prediction_deadline.gt.${now},status.neq.finished)`)
+    .or(`and(status.eq.scheduled,kickoff_time.gt.${now},kickoff_time.lte.${cutoff}),and(allow_late_predictions.eq.true,prediction_deadline.gt.${now},status.neq.finished)`)
     .order("kickoff_time", { ascending: true });
 
   const matches: Match[] = (matchesRaw ?? []).map((m) => ({
