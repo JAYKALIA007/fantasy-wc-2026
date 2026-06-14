@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { SignInButton } from "./sign-in-button";
 
 interface JoinPageProps {
@@ -34,36 +35,16 @@ function Hero() {
         </span>
       ))}
 
-      {/* Football icon */}
-      <div style={{ fontSize: 56, marginBottom: 20, lineHeight: 1 }}>⚽</div>
-
-      {/* FIFA WORLD CUP text */}
-      <p
-        style={{
-          fontFamily: "var(--font-anton), sans-serif",
-          fontSize: 20,
-          letterSpacing: "0.25em",
-          color: "rgba(255,255,255,0.5)",
-          textTransform: "uppercase",
-          margin: 0,
-          lineHeight: 1,
-        }}
-      >
-        FIFA World Cup
-      </p>
-      <p
-        style={{
-          fontFamily: "var(--font-anton), sans-serif",
-          fontSize: 80,
-          color: "var(--gold)",
-          letterSpacing: "0.05em",
-          margin: 0,
-          lineHeight: 1,
-          textShadow: "0 0 40px rgba(245,181,10,0.4)",
-        }}
-      >
-        2026
-      </p>
+      {/* Official WC 2026 logo */}
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+        <Image
+          src="/wc2026-logo.png"
+          alt="FIFA World Cup 2026"
+          width={160}
+          height={160}
+          priority
+        />
+      </div>
 
       {/* Divider line */}
       <div
