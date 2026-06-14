@@ -27,14 +27,22 @@ export async function GET(request: Request) {
   const freeSlots = settings?.free_slots ?? 20;
 
   if (totalUsers < freeSlots) {
-    // Auto-approve: upsert profile and increment total_users
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (user) {
+      const { data: existing } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .maybeSingle();
+
       await supabase.from("profiles").upsert({ id: user.id });
-      await supabase.rpc("increment_total_users");
+
+      if (!existing) {
+        await supabase.rpc("increment_total_users");
+      }
     }
 
     return NextResponse.redirect(`${origin}/onboarding`);

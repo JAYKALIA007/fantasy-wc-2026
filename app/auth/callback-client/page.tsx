@@ -23,8 +23,18 @@ export default function CallbackClientPage() {
       const freeSlots = settings?.free_slots ?? 20;
 
       if (totalUsers < freeSlots) {
+        const { data: existing } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("id", user.id)
+          .maybeSingle();
+
         await supabase.from("profiles").upsert({ id: user.id });
-        await supabase.rpc("increment_total_users");
+
+        if (!existing) {
+          await supabase.rpc("increment_total_users");
+        }
+
         router.push("/onboarding");
       } else {
         router.push("/waitlist");
