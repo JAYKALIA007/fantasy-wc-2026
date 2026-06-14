@@ -673,7 +673,7 @@ export default async function HomePage() {
                       color: "var(--n0)",
                     }}
                   >
-                    {openMatches.length - 3} more prediction{openMatches.length - 3 > 1 ? "s" : ""} to make
+                    For more predictions, click here
                   </div>
                   <span style={{ color: "var(--n6)", fontSize: 16 }}>›</span>
                 </Link>
