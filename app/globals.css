@@ -55,6 +55,18 @@
   --sh-lg: 0 8px 32px rgba(14, 23, 38, 0.14), 0 2px 8px rgba(14, 23, 38, 0.06);
 }
 
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, var(--n8) 25%, var(--surf) 50%, var(--n8) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite linear;
+  border-radius: 8px;
+}
+
 html,
 body {
   height: 100%;
