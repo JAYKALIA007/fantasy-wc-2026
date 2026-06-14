@@ -5,49 +5,29 @@ import OnboardingClient from "./onboarding-client";
 export default async function OnboardingPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/join");
 
-  if (!user) {
-    redirect("/join");
-  }
-
-  // Check if already onboarded
   const { data: membership } = await supabase
     .from("league_members")
     .select("id")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (membership) {
-    redirect("/");
-  }
+  if (membership) redirect("/");
 
-  // Fetch league
   const { data: league } = await supabase
     .from("leagues")
     .select("id, name, max_players")
     .eq("invite_code", "wc2026")
     .single();
 
-  // Fetch all avatars
-  const { data: avatars } = await supabase
-    .from("avatars")
-    .select("id, footballer_name, initials, nation, position, card_type, rating")
-    .order("rating", { ascending: false });
+  const { data: nations } = await supabase
+    .from("nations")
+    .select("id, name, fifa_ranking")
+    .order("fifa_ranking", { ascending: true });
 
-  // Fetch taken avatar IDs in this league
-  const { data: takenRows } = await supabase
-    .from("league_members")
-    .select("avatar_id")
-    .eq("league_id", league?.id ?? "");
-
-  const takenAvatarIds = new Set(
-    (takenRows ?? []).map((r) => r.avatar_id as string)
-  );
-
-  const { data: memberCount } = await supabase
+  const { data: memberRows } = await supabase
     .from("league_members")
     .select("id", { count: "exact" })
     .eq("league_id", league?.id ?? "");
@@ -56,10 +36,9 @@ export default async function OnboardingPage() {
     <OnboardingClient
       userEmail={user.email ?? ""}
       userId={user.id}
-      league={league ?? { id: "", name: "Jay's League", max_players: 15 }}
-      avatars={avatars ?? []}
-      initialTakenAvatarIds={Array.from(takenAvatarIds)}
-      memberCount={memberCount?.length ?? 0}
+      league={league ?? { id: "", name: "WC 2026 League", max_players: 15 }}
+      nations={nations ?? []}
+      memberCount={memberRows?.length ?? 0}
     />
   );
 }
