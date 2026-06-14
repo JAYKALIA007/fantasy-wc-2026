@@ -54,7 +54,11 @@ export default function OnboardingClient({ userEmail, userId, league, nations, m
   }, [step]);
 
   const handleSave = useCallback(async () => {
-    if (!profileName.trim() || !league.id) return;
+    if (!profileName.trim()) return;
+    if (!league.id) {
+      setError("League not found — please contact the admin.");
+      return;
+    }
     setSaving(true);
     setError(null);
     const supabase = createClient();
@@ -145,14 +149,16 @@ export default function OnboardingClient({ userEmail, userId, league, nations, m
               onClick={handleSave}
               disabled={!profileName.trim() || saving}
               style={{
-                display: "block", width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
                 cursor: profileName.trim() && !saving ? "pointer" : "not-allowed",
                 backgroundColor: profileName.trim() && !saving ? "var(--g3)" : "var(--n8)",
                 color: profileName.trim() && !saving ? "#fff" : "var(--n5)",
                 fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 16, transition: "background-color 0.2s",
               }}
             >
-              {saving ? "Saving…" : "Join the league →"}
+              {saving && <span className="btn-spinner" />}
+              {saving ? "Joining…" : "Join the league →"}
             </button>
           )}
         </div>

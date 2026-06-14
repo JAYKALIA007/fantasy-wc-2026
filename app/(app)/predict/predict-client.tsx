@@ -698,10 +698,14 @@ export default function PredictClient({
               fontWeight: 700,
               fontSize: 15,
               cursor: saving || isLocked ? "not-allowed" : "pointer",
-              opacity: saving ? 0.7 : 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
             }}
           >
-            {isLast ? "Save →" : "Save & next →"}
+            {saving && <span className="btn-spinner" />}
+            {saving ? "Saving…" : isLast ? "Save →" : "Save & next →"}
           </button>
         </div>
       </div>

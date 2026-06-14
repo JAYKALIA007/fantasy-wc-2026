@@ -55,6 +55,26 @@
   --sh-lg: 0 8px 32px rgba(14, 23, 38, 0.14), 0 2px 8px rgba(14, 23, 38, 0.06);
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.btn-spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.btn-spinner--dark {
+  border-color: rgba(14, 23, 38, 0.25);
+  border-top-color: var(--n0);
+}
+
 @keyframes shimmer {
   0% { background-position: -400px 0; }
   100% { background-position: 400px 0; }
