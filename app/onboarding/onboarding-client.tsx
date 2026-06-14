@@ -31,8 +31,8 @@ const FLAG_EMOJI: Record<string, string> = {
   "Jordan": "🇯🇴", "New Zealand": "🇳🇿", "Haiti": "🇭🇹", "Curaçao": "🇨🇼",
 };
 
-const TOTAL_STEPS = 5;
-const STEP_LABELS = ["Invite", "Sign in", "Primary pick", "Wildcard pick", "Your name"];
+const TOTAL_STEPS = 6;
+const STEP_LABELS = ["Invite", "Sign in", "How it works", "Primary pick", "Wildcard pick", "Your name"];
 
 export default function OnboardingClient({ userEmail, userId, league, nations, memberCount }: Props) {
   const router = useRouter();
@@ -98,7 +98,8 @@ export default function OnboardingClient({ userEmail, userId, league, nations, m
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px 0" }}>
         {step === 1 && <StepConfirm icon="🏆" title="Invite verified ✓" />}
         {step === 2 && <StepConfirm icon="✅" title="Signed in" subtitle={userEmail} />}
-        {step === 3 && (
+        {step === 3 && <StepHowItWorks />}
+        {step === 4 && (
           <StepNationPicker
             title="Your #1 pick"
             subtitle="Pick the team you think will win the tournament. Top 15 by FIFA ranking only."
@@ -107,7 +108,7 @@ export default function OnboardingClient({ userEmail, userId, league, nations, m
             onSelect={setPrimaryNationId}
           />
         )}
-        {step === 4 && (
+        {step === 5 && (
           <StepNationPicker
             title="Your wildcard"
             subtitle="Pick a dark horse — a team outside the top 15. Bonus points if they surprise everyone."
@@ -116,7 +117,7 @@ export default function OnboardingClient({ userEmail, userId, league, nations, m
             onSelect={setSecondaryNationId}
           />
         )}
-        {step === 5 && (
+        {step === 6 && (
           <StepProfile profileName={profileName} onChange={setProfileName} error={error} />
         )}
       </div>
@@ -124,22 +125,22 @@ export default function OnboardingClient({ userEmail, userId, league, nations, m
       {/* Bottom tray */}
       {step >= 3 && (
         <div style={{ flexShrink: 0, backgroundColor: "var(--surf)", borderTop: "1px solid rgba(14,23,38,.07)", padding: "12px 14px 14px" }}>
-          {step < 5 && (
+          {step < 6 && (
             <button
               onClick={() => setStep(s => s + 1)}
-              disabled={step === 3 ? !primaryNationId : step === 4 ? !secondaryNationId : false}
+              disabled={step === 4 ? !primaryNationId : step === 5 ? !secondaryNationId : false}
               style={{
                 display: "block", width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
-                cursor: (step === 3 ? !primaryNationId : step === 4 ? !secondaryNationId : false) ? "not-allowed" : "pointer",
-                backgroundColor: (step === 3 ? !primaryNationId : step === 4 ? !secondaryNationId : false) ? "var(--n8)" : "var(--g3)",
-                color: (step === 3 ? !primaryNationId : step === 4 ? !secondaryNationId : false) ? "var(--n5)" : "#fff",
+                cursor: (step === 4 ? !primaryNationId : step === 5 ? !secondaryNationId : false) ? "not-allowed" : "pointer",
+                backgroundColor: (step === 4 ? !primaryNationId : step === 5 ? !secondaryNationId : false) ? "var(--n8)" : "var(--g3)",
+                color: (step === 4 ? !primaryNationId : step === 5 ? !secondaryNationId : false) ? "var(--n5)" : "#fff",
                 fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 16, transition: "background-color 0.2s",
               }}
             >
-              Continue →
+              {step === 3 ? "Got it →" : "Continue →"}
             </button>
           )}
-          {step === 5 && (
+          {step === 6 && (
             <button
               onClick={handleSave}
               disabled={!profileName.trim() || saving}
@@ -168,6 +169,41 @@ function StepConfirm({ icon, title, subtitle }: { icon: string; title: string; s
       </div>
       <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 20, color: "var(--n0)", textAlign: "center", margin: 0 }}>{title}</p>
       {subtitle && <p style={{ fontSize: 14, color: "var(--n4)", fontFamily: "var(--font-inter), sans-serif", margin: 0 }}>{subtitle}</p>}
+    </div>
+  );
+}
+
+function StepHowItWorks() {
+  const rows = [
+    { label: "Correct result", value: "+1 pt", sub: "Right winner or draw" },
+    { label: "Exact score", value: "+3 pts", sub: "Exact home & away goals" },
+    { label: "Nation wins a match", value: "+3 pts", sub: "Both primary & wildcard" },
+    { label: "Nation draws", value: "+1 pt", sub: "Group stage draws count" },
+    { label: "Nation reaches R16", value: "+10 pts", sub: "R32 +5, QF +15, SF +20" },
+    { label: "Nation wins the final 🏆", value: "+50 pts", sub: "" },
+  ];
+  return (
+    <div style={{ paddingBottom: 16 }}>
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 28, color: "var(--n0)", margin: 0 }}>How it works</h1>
+        <p style={{ fontSize: 13, color: "var(--n5)", marginTop: 5, fontFamily: "var(--font-inter), sans-serif", lineHeight: 1.5 }}>
+          Your score = prediction points + nation bonus points. Here&apos;s how each is earned.
+        </p>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {rows.map((r, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: "1px solid var(--n8)" }}>
+            <div>
+              <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 14, color: "var(--n0)", margin: 0 }}>{r.label}</p>
+              {r.sub && <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: "2px 0 0" }}>{r.sub}</p>}
+            </div>
+            <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 15, color: "var(--g2)", flexShrink: 0, marginLeft: 12 }}>{r.value}</span>
+          </div>
+        ))}
+      </div>
+      <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", marginTop: 16, lineHeight: 1.5 }}>
+        ⏱ Predictions lock at exact kickoff. You&apos;ll pick your two nations in the next steps.
+      </p>
     </div>
   );
 }

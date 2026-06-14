@@ -370,18 +370,21 @@ export default function PredictClient({
         >
           {currentIndex + 1}/{matches.length}
         </div>
-        <Link
-          href="/predict/history"
-          style={{
-            fontFamily: "var(--font-inter), sans-serif",
-            fontSize: 12,
-            color: "var(--g4)",
-            textDecoration: "none",
-            flexShrink: 0,
-          }}
-        >
-          History →
-        </Link>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Link
+            href="/rules"
+            style={{ color: "var(--n5)", textDecoration: "none", fontSize: 18, lineHeight: 1, flexShrink: 0 }}
+            title="How it works"
+          >
+            ⓘ
+          </Link>
+          <Link
+            href="/predict/history"
+            style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--g4)", textDecoration: "none", flexShrink: 0 }}
+          >
+            History →
+          </Link>
+        </div>
       </div>
 
       {/* Progress dots */}

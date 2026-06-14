@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 
 export default async function NationPage() {
   const supabase = await createClient();
@@ -53,7 +54,7 @@ export default async function NationPage() {
             marginTop: 8,
           }}
         >
-          Coming Soon
+          Bonus points active
         </p>
       </div>
 
@@ -74,19 +75,24 @@ export default async function NationPage() {
             boxShadow: "var(--sh-md)",
           }}
         >
-          <h2
-            style={{
-              fontFamily: "var(--font-saira), sans-serif",
-              fontWeight: 800,
-              fontSize: 15,
-              color: "var(--n9)",
-              textTransform: "uppercase",
-              letterSpacing: 0.8,
-              margin: "0 0 14px",
-            }}
-          >
-            How Pick Your Nation Works
-          </h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <h2
+              style={{
+                fontFamily: "var(--font-saira), sans-serif",
+                fontWeight: 800,
+                fontSize: 15,
+                color: "var(--n9)",
+                textTransform: "uppercase",
+                letterSpacing: 0.8,
+                margin: 0,
+              }}
+            >
+              How Pick Your Nation Works
+            </h2>
+            <Link href="/rules" style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--g3)", textDecoration: "none", flexShrink: 0 }}>
+              Full rules →
+            </Link>
+          </div>
 
           <div
             style={{
