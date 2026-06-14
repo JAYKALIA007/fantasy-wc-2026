@@ -118,12 +118,70 @@ avatars            id, footballer_name, initials, nation, position
 - Admin panel: score results, toggle late predictions per match
 - Rules page: full scoring breakdown
 
+## Fantasy League (Deferred — Phase 3)
+
+Schema is fully built but the feature is hidden behind `NEXT_PUBLIC_FANTASY_ENABLED`. Blocked on player stats auto-sync.
+
+### Glossary additions
+| Term | Definition |
+|---|---|
+| **Squad** | 11-player team picked by each member per round, capped at 100.0 budget |
+| **Starting XI** | 11 players marked `is_starting = true`; bench players score 0 unless captain DNP |
+| **Captain** | One player per squad — scores 2× points for that match |
+| **Vice-captain** | Scores 2× only if captain played 0 minutes |
+| **Transfer** | Swap one player out for another during a transfer window. First transfer per window is free; subsequent cost 1.0 from squad cap |
+| **Transfer window** | Admin-controlled window (`transfer_windows` table) with opens_at / closes_at timestamps |
+| **Price rise** | After a round ends, any player scoring ≥5 fantasy pts gets +0.5 price increase |
+
+### Fantasy Scoring (per player per match)
+| Event | Points |
+|---|---|
+| Goal scored | +5 |
+| Assist | +3 |
+| Clean sheet (GK or DEF, 90 min) | +4 |
+| Yellow card | −1 |
+| Red card | −3 |
+| 60+ minutes played | +1 |
+| Captain | 2× all of the above |
+
+### Squad Rules
+- Budget cap: **100.0** per squad
+- Squad size: **11 starting** (no formal bench size defined — bench players just have `is_starting = false`)
+- Exactly **1 captain**, **1 vice-captain** per squad
+- Squads carry over between rounds via `carryover_squad()` DB function
+
+### Player Pool
+58 players seeded across 4 positions (8 GK, 16 DEF, 18 MID, 16 FWD) from the top nations. Prices range 4.5–12.5.
+
+### Fantasy DB Tables
+```
+football_players       id (int), name, nation_id, position, current_price, initial_price
+fantasy_squads         id, league_id, user_id, round_id, squad_value_cap
+fantasy_squad_players  squad_id, player_id, is_starting, is_captain, is_vice_captain
+fantasy_transfers      league_id, user_id, round_id, player_out_id, player_in_id, is_free, cap_cost
+transfer_windows       round_id, window_number, opens_at, closes_at
+player_match_stats     match_id, player_id, goals, assists, yellow_cards, red_cards, minutes_played, clean_sheet, fantasy_points
+fantasy_round_scores   league_id, user_id, round_id, total_points
+```
+
+### Fantasy API Routes (built, inactive)
+| Route | Description |
+|---|---|
+| `POST /api/fantasy/squad` | Save/update squad for a round |
+| `POST /api/fantasy/transfer` | Execute a transfer within a window |
+| `POST /api/admin/transfer-window` | Open/close a transfer window |
+| `POST /api/admin/match-stats` | Input player stats for a finished match |
+
+### What's blocking fantasy launch
+1. **Player stats input** — currently manual via `/api/admin/match-stats`. ESPN public API (`site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard`) can auto-sync stats — no API key needed.
+2. **UI** — `/squad` and `/squad/transfers` pages exist but are hidden. Flip `NEXT_PUBLIC_FANTASY_ENABLED=true` to enable.
+
+---
+
 ## What's Deferred
 
-- **Fantasy squad** — squad builder UI exists (`/squad`) but is hidden. Blocked on auto-sync for player stats.
-- **ESPN auto-sync** — cron endpoint to auto-update match scores from ESPN public API (no key needed). Would remove all manual admin scoring.
+- **ESPN auto-sync** — cron endpoint to auto-update match scores + player stats from ESPN public API. Removes all manual admin work.
 - **WhatsApp share card** — `/api/og` shareable image (rank + points). High engagement driver, planned before R16.
-- **Full fantasy league** — transfers, price changes, weekly scoring. Flag `NEXT_PUBLIC_FANTASY_ENABLED` controls visibility.
 
 ---
 
