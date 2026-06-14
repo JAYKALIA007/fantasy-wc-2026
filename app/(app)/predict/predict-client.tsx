@@ -19,6 +19,7 @@ interface Match {
   group_label?: string | null;
   venue_city?: string | null;
   venue_name?: string | null;
+  allow_late_predictions: boolean;
   home_nation: Nation;
   away_nation: Nation;
   round: { id: string; name: string } | null;
@@ -293,10 +294,13 @@ export default function PredictClient({
 
   const match = currentMatch;
   const [homeScore, awayScore] = scores[match.id] ?? [0, 0];
+  const minsUntilKickoff = (new Date(match.kickoff_time).getTime() - Date.now()) / 60000;
   const countdown = formatCountdown(match.kickoff_time);
-  const isLocked = countdown.urgent;
+  const isLate = match.allow_late_predictions && minsUntilKickoff < 0;
+  const isLocked = isLate ? minsUntilKickoff < -45 : minsUntilKickoff < 0;
   const isSaved = savedMatches.has(match.id);
   const isLast = currentIndex === matches.length - 1;
+  const lateMinLeft = isLate ? Math.max(0, Math.ceil(45 + minsUntilKickoff)) : 0;
 
   return (
     <div
@@ -495,27 +499,23 @@ export default function PredictClient({
                 gap: 5,
                 padding: "4px 10px",
                 borderRadius: 20,
-                background: countdown.urgent
+                background: isLate
+                  ? "rgba(245,181,10,0.18)"
+                  : countdown.urgent
                   ? "rgba(226,59,72,0.18)"
                   : "rgba(0,184,92,0.15)",
-                color: countdown.urgent ? "var(--r3)" : "var(--g4)",
+                color: isLate ? "var(--gold)" : countdown.urgent ? "var(--r3)" : "var(--g4)",
                 fontFamily: "var(--font-saira), sans-serif",
                 fontWeight: 700,
                 fontSize: 11,
               }}
             >
-              {countdown.urgent && (
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    background: "var(--r2)",
-                    display: "inline-block",
-                  }}
-                />
-              )}
-              {countdown.label}
+              {isLate ? `⚡ ${lateMinLeft}m left` : countdown.urgent ? (
+                <>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--r2)", display: "inline-block" }} />
+                  {countdown.label}
+                </>
+              ) : countdown.label}
             </div>
           </div>
 

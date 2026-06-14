@@ -34,6 +34,7 @@ interface MatchRow {
   home_score: number | null;
   away_score: number | null;
   status: string;
+  allow_late_predictions: boolean;
   home_nation: { name: string } | null;
   away_nation: { name: string } | null;
 }
@@ -95,7 +96,7 @@ export function AdminClient({
       const { data } = await supabase
         .from("matches")
         .select(
-          "id, kickoff_time, home_score, away_score, status, home_nation:nations!matches_home_nation_id_fkey(name), away_nation:nations!matches_away_nation_id_fkey(name)"
+          "id, kickoff_time, home_score, away_score, status, allow_late_predictions, home_nation:nations!matches_home_nation_id_fkey(name), away_nation:nations!matches_away_nation_id_fkey(name)"
         )
         .eq("round_id", GROUP_STAGE_ROUND_ID)
         .order("kickoff_time", { ascending: false });
@@ -115,6 +116,7 @@ export function AdminClient({
           home_score: m.home_score as number | null,
           away_score: m.away_score as number | null,
           status: m.status as string,
+          allow_late_predictions: (m.allow_late_predictions as boolean) ?? false,
           home_nation: homeNation,
           away_nation: awayNation,
         };
@@ -277,6 +279,22 @@ export function AdminClient({
       }
     } finally {
       setKickingId(null);
+    }
+  }
+
+  async function toggleLatePredictions(matchId: number, current: boolean) {
+    const { createClient } = await import("@/lib/supabase/client");
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("matches")
+      .update({ allow_late_predictions: !current })
+      .eq("id", matchId);
+    if (error) {
+      setStatusMsg(`Error: ${error.message}`);
+    } else {
+      setMatches((prev) =>
+        prev.map((m) => m.id === matchId ? { ...m, allow_late_predictions: !current } : m)
+      );
     }
   }
 
@@ -703,7 +721,28 @@ export function AdminClient({
                       </div>
                     </div>
 
-                    {/* Score display for finished matches */}
+                    {/* Late predictions toggle */}
+                    {!isFinished && (
+                      <button
+                        onClick={() => void toggleLatePredictions(m.id, m.allow_late_predictions)}
+                        style={{
+                          padding: "5px 10px",
+                          borderRadius: 8,
+                          background: m.allow_late_predictions ? "rgba(245,181,10,0.15)" : "var(--surf2)",
+                          border: m.allow_late_predictions ? "1.5px solid var(--gold)" : "1.5px solid var(--n8)",
+                          color: m.allow_late_predictions ? "var(--gold-text)" : "var(--n5)",
+                          fontFamily: "var(--font-saira), sans-serif",
+                          fontWeight: 700,
+                          fontSize: 11,
+                          cursor: "pointer",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {m.allow_late_predictions ? "⚡ Late ON" : "⚡ Late"}
+                      </button>
+                    )}
+
+                  {/* Score display for finished matches */}
                     {isFinished && (
                       <div
                         style={{
