@@ -37,6 +37,7 @@ interface Props {
   predictions: PredictionRecord[];
   profileName?: string;
   backHref?: string;
+  nationBonus?: number;
 }
 
 function toIST(utcDate: string): string {
@@ -89,7 +90,7 @@ function PointsBadge({ points }: { points: number | null }) {
   );
 }
 
-export default function HistoryClient({ predictions, profileName, backHref }: Props) {
+export default function HistoryClient({ predictions, profileName, backHref, nationBonus }: Props) {
   const [summaries, setSummaries] = useState<Record<number, MatchSummary>>({});
 
   useEffect(() => {
@@ -167,15 +168,32 @@ export default function HistoryClient({ predictions, profileName, backHref }: Pr
             {profileName ?? "My Predictions"}
           </span>
         </div>
-        <span
-          style={{
-            fontFamily: "var(--font-inter), sans-serif",
-            fontSize: 12,
-            color: "var(--n5)",
-          }}
-        >
-          {predictions.length} total
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {nationBonus !== undefined && nationBonus > 0 && (
+            <span
+              style={{
+                padding: "3px 8px",
+                borderRadius: 20,
+                background: "rgba(0,184,92,0.12)",
+                fontFamily: "var(--font-saira), sans-serif",
+                fontWeight: 700,
+                fontSize: 12,
+                color: "var(--g2)",
+              }}
+            >
+              +{nationBonus}n
+            </span>
+          )}
+          <span
+            style={{
+              fontFamily: "var(--font-inter), sans-serif",
+              fontSize: 12,
+              color: "var(--n5)",
+            }}
+          >
+            {predictions.length} total
+          </span>
+        </div>
       </div>
 
       {/* Content */}
@@ -219,24 +237,28 @@ export default function HistoryClient({ predictions, profileName, backHref }: Pr
                 textAlign: "center",
               }}
             >
-              Head to Predict to make your first prediction.
+              {profileName
+                ? `${profileName} hasn't made any predictions for kicked-off matches.`
+                : "Head to Predict to make your first prediction."}
             </p>
-            <Link
-              href="/predict"
-              style={{
-                marginTop: 8,
-                padding: "10px 24px",
-                borderRadius: 10,
-                background: "var(--g3)",
-                color: "#fff",
-                fontFamily: "var(--font-saira), sans-serif",
-                fontWeight: 700,
-                fontSize: 14,
-                textDecoration: "none",
-              }}
-            >
-              Predict now
-            </Link>
+            {!profileName && (
+              <Link
+                href="/predict"
+                style={{
+                  marginTop: 8,
+                  padding: "10px 24px",
+                  borderRadius: 10,
+                  background: "var(--g3)",
+                  color: "#fff",
+                  fontFamily: "var(--font-saira), sans-serif",
+                  fontWeight: 700,
+                  fontSize: 14,
+                  textDecoration: "none",
+                }}
+              >
+                Predict now
+              </Link>
+            )}
           </div>
         )}
 

@@ -27,10 +27,10 @@ export default async function PlayerPredictionsPage({
 
   const leagueId = myMembership.league_id as string;
 
-  // Verify target user is in the same league and get their profile name
+  // Verify target user is in the same league and get their profile name + nation picks
   const { data: targetMember } = await supabase
     .from("league_members")
-    .select("profile_name")
+    .select("id, profile_name, primary_nation_id, secondary_nation_id")
     .eq("user_id", targetUserId)
     .eq("league_id", leagueId)
     .maybeSingle();
@@ -38,9 +38,19 @@ export default async function PlayerPredictionsPage({
   if (!targetMember) notFound();
 
   const profileName = targetMember.profile_name as string;
+  const memberId = targetMember.id as string;
   const now = new Date().toISOString();
 
-  // Fetch their predictions for matches that have already kicked off
+  // Fetch nation bonus total for this member
+  const { data: nationBonusRows } = await supabase
+    .from("nation_bonus_points")
+    .select("points")
+    .eq("league_member_id", memberId);
+
+  const nationBonus = (nationBonusRows ?? []).reduce((sum, r) => sum + (r.points as number), 0);
+
+  // Fetch all their predictions — filter to kicked-off matches in JS
+  // (PostgREST does not support filtering a parent table by an embedded relation column)
   const { data: predsRaw } = await supabase
     .from("predictions")
     .select(
@@ -50,8 +60,7 @@ export default async function PlayerPredictionsPage({
          away_nation:away_nation_id(name, flag_code))`
     )
     .eq("user_id", targetUserId)
-    .eq("league_id", leagueId)
-    .lte("match.kickoff_time", now);
+    .eq("league_id", leagueId);
 
   type NationInfo = { name: string; flag_code: string };
   type MatchRaw = {
@@ -69,6 +78,8 @@ export default async function PlayerPredictionsPage({
       const matchRaw = Array.isArray(p.match) ? p.match[0] : p.match;
       if (!matchRaw) return null;
       const m = matchRaw as MatchRaw;
+      // Only show predictions for matches that have already kicked off
+      if (new Date(m.kickoff_time) > new Date(now)) return null;
       return {
         id: p.id as string,
         match_id: p.match_id as number,
@@ -104,6 +115,7 @@ export default async function PlayerPredictionsPage({
       predictions={sorted}
       profileName={profileName}
       backHref="/ranks"
+      nationBonus={nationBonus}
     />
   );
 }
