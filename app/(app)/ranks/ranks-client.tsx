@@ -272,7 +272,7 @@ export default function RanksClient({
   const myFlag = FLAG_EMOJI[myPrimaryNationName] ?? "🌐";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div>
       {/* App header */}
       <div
         style={{
@@ -324,8 +324,6 @@ export default function RanksClient({
       {/* Body */}
       <div
         style={{
-          flex: 1,
-          overflowY: "auto",
           padding: "16px 16px 0",
           display: "flex",
           flexDirection: "column",
@@ -382,8 +380,6 @@ export default function RanksClient({
           </div>
           <span style={{ fontSize: 22 }}>🔒</span>
         </div>
-
-        <div style={{ flex: 1 }} />
       </div>
 
       {/* Bottom tray */}
@@ -392,6 +388,7 @@ export default function RanksClient({
           background: "var(--surf)",
           borderTop: "1px solid var(--n9)",
           padding: "12px 16px 14px",
+          marginTop: 16,
           boxShadow: "0 -2px 12px rgba(14,23,38,0.06)",
         }}
       >

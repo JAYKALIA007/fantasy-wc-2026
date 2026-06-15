@@ -670,7 +670,7 @@ export default async function HomePage() {
               {predRank !== null ? `#${predRank}` : "--"}
             </span>
             <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)" }}>
-              /{(totalMembers ?? 1) - 1} players →
+              /{allMembersRaw.length} players →
             </span>
           </div>
         </Link>

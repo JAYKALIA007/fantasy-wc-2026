@@ -180,7 +180,7 @@ export default async function RanksPage() {
       initialRows={rankRowsWithNation}
       currentUserId={user.id}
       leagueName={(league?.name as string) ?? "Jay's League"}
-      memberCount={(memberCount ?? 1) - 1}
+      memberCount={allMembers.length}
       leagueId={leagueId}
       roundId={roundId}
       myRank={myRank}
