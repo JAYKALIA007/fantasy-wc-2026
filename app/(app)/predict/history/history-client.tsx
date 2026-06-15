@@ -33,11 +33,18 @@ interface MatchSummary {
   exact: number;
 }
 
+interface NationBasic {
+  name: string;
+  flag_code: string;
+}
+
 interface Props {
   predictions: PredictionRecord[];
   profileName?: string;
   backHref?: string;
   nationBonus?: number;
+  primaryNation?: NationBasic;
+  secondaryNation?: NationBasic;
 }
 
 function toIST(utcDate: string): string {
@@ -90,8 +97,11 @@ function PointsBadge({ points }: { points: number | null }) {
   );
 }
 
-export default function HistoryClient({ predictions, profileName, backHref, nationBonus }: Props) {
+const PAGE_SIZE = 5;
+
+export default function HistoryClient({ predictions, profileName, backHref, nationBonus, primaryNation, secondaryNation }: Props) {
   const [summaries, setSummaries] = useState<Record<number, MatchSummary>>({});
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   useEffect(() => {
     const finishedIds = predictions
@@ -167,6 +177,35 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
           >
             {profileName ?? "My Predictions"}
           </span>
+          {profileName && (primaryNation || secondaryNation) && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
+              {primaryNation && (
+                <span
+                  style={{
+                    fontFamily: "var(--font-inter), sans-serif",
+                    fontSize: 11,
+                    color: "var(--n4)",
+                  }}
+                >
+                  {primaryNation.flag_code} {primaryNation.name}
+                </span>
+              )}
+              {secondaryNation && (
+                <>
+                  <span style={{ fontSize: 10, color: "var(--n7)" }}>·</span>
+                  <span
+                    style={{
+                      fontFamily: "var(--font-inter), sans-serif",
+                      fontSize: 11,
+                      color: "var(--n5)",
+                    }}
+                  >
+                    {secondaryNation.flag_code} {secondaryNation.name}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {nationBonus !== undefined && nationBonus > 0 && (
@@ -184,15 +223,17 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
               +{nationBonus}n
             </span>
           )}
-          <span
-            style={{
-              fontFamily: "var(--font-inter), sans-serif",
-              fontSize: 12,
-              color: "var(--n5)",
-            }}
-          >
-            {predictions.length} total
-          </span>
+          {predictions.length > 0 && (
+            <span
+              style={{
+                fontFamily: "var(--font-inter), sans-serif",
+                fontSize: 12,
+                color: "var(--n5)",
+              }}
+            >
+              {predictions.length} predictions
+            </span>
+          )}
         </div>
       </div>
 
@@ -262,7 +303,7 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
           </div>
         )}
 
-        {predictions.map((p) => {
+        {predictions.slice(0, visibleCount).map((p) => {
           const isFinished = p.match.status === "finished";
           return (
             <div
@@ -445,6 +486,26 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
             </div>
           );
         })}
+
+        {visibleCount < predictions.length && (
+          <button
+            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            style={{
+              width: "100%",
+              padding: "12px",
+              borderRadius: 10,
+              border: "1px solid var(--n8)",
+              background: "var(--surf)",
+              fontFamily: "var(--font-saira), sans-serif",
+              fontWeight: 700,
+              fontSize: 13,
+              color: "var(--n3)",
+              cursor: "pointer",
+            }}
+          >
+            Show {Math.min(PAGE_SIZE, predictions.length - visibleCount)} more
+          </button>
+        )}
       </div>
     </div>
   );

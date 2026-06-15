@@ -30,15 +30,27 @@ export default async function PlayerPredictionsPage({
   // Verify target user is in the same league and get their profile name + nation picks
   const { data: targetMember } = await supabase
     .from("league_members")
-    .select("id, profile_name, primary_nation_id, secondary_nation_id")
+    .select(
+      `id, profile_name,
+       primary_nation:primary_nation_id(name, flag_code),
+       secondary_nation:secondary_nation_id(name, flag_code)`
+    )
     .eq("user_id", targetUserId)
     .eq("league_id", leagueId)
     .maybeSingle();
 
   if (!targetMember) notFound();
 
+  type NationBasic = { name: string; flag_code: string };
+
   const profileName = targetMember.profile_name as string;
   const memberId = targetMember.id as string;
+  const primaryNation = (Array.isArray(targetMember.primary_nation)
+    ? targetMember.primary_nation[0]
+    : targetMember.primary_nation) as NationBasic | null;
+  const secondaryNation = (Array.isArray(targetMember.secondary_nation)
+    ? targetMember.secondary_nation[0]
+    : targetMember.secondary_nation) as NationBasic | null;
   const now = new Date().toISOString();
 
   // Fetch nation bonus total for this member
@@ -62,7 +74,7 @@ export default async function PlayerPredictionsPage({
     .eq("user_id", targetUserId)
     .eq("league_id", leagueId);
 
-  type NationInfo = { name: string; flag_code: string };
+  type NationInfo = NationBasic;
   type MatchRaw = {
     kickoff_time: string;
     home_score: number | null;
@@ -116,6 +128,8 @@ export default async function PlayerPredictionsPage({
       profileName={profileName}
       backHref="/ranks"
       nationBonus={nationBonus}
+      primaryNation={primaryNation ?? undefined}
+      secondaryNation={secondaryNation ?? undefined}
     />
   );
 }
