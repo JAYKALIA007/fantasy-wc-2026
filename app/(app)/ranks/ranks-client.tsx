@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 const FLAG_EMOJI: Record<string, string> = {
@@ -104,8 +105,9 @@ function RankList({
         const flag = FLAG_EMOJI[row.primary_nation_name] ?? "🌐";
 
         return (
-          <div
+          <Link
             key={row.user_id}
+            href={`/player/${row.user_id}`}
             style={{
               display: "flex",
               alignItems: "center",
@@ -113,6 +115,8 @@ function RankList({
               padding: "12px 14px",
               borderBottom: idx < rows.length - 1 ? "1px solid var(--n9)" : "none",
               background: isMe ? "rgba(0,184,92,0.07)" : "transparent",
+              textDecoration: "none",
+              color: "inherit",
             }}
           >
             {/* Rank */}
@@ -189,7 +193,7 @@ function RankList({
                 )}
               </div>
             </div>
-          </div>
+          </Link>
         );
       })}
     </div>

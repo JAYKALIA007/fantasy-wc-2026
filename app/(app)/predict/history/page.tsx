@@ -1,30 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import HistoryClient from "./history-client";
-
-interface NationInfo {
-  name: string;
-  flag_code: string;
-}
-
-interface MatchInfo {
-  kickoff_time: string;
-  home_score: number | null;
-  away_score: number | null;
-  status: string;
-  group_label: string | null;
-  home_nation: NationInfo;
-  away_nation: NationInfo;
-}
-
-export interface PredictionRecord {
-  id: string;
-  match_id: number;
-  predicted_home_score: number;
-  predicted_away_score: number;
-  points: number | null;
-  match: MatchInfo;
-}
+import HistoryClient, { type PredictionRecord } from "./history-client";
 
 export default async function HistoryPage() {
   const supabase = await createClient();
@@ -59,6 +35,8 @@ export default async function HistoryPage() {
     )
     .eq("user_id", user.id)
     .eq("league_id", leagueId);
+
+  type NationInfo = { name: string; flag_code: string };
 
   const predictions: PredictionRecord[] = (predsRaw ?? []).map((p) => {
     const matchRaw = Array.isArray(p.match) ? p.match[0] : p.match;

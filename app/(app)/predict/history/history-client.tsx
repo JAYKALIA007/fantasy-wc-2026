@@ -2,7 +2,30 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import type { PredictionRecord } from "./page";
+
+interface NationInfo {
+  name: string;
+  flag_code: string;
+}
+
+interface MatchInfo {
+  kickoff_time: string;
+  home_score: number | null;
+  away_score: number | null;
+  status: string;
+  group_label: string | null;
+  home_nation: NationInfo;
+  away_nation: NationInfo;
+}
+
+export interface PredictionRecord {
+  id: string;
+  match_id: number;
+  predicted_home_score: number;
+  predicted_away_score: number;
+  points: number | null;
+  match: MatchInfo;
+}
 
 interface MatchSummary {
   total: number;
@@ -12,6 +35,8 @@ interface MatchSummary {
 
 interface Props {
   predictions: PredictionRecord[];
+  profileName?: string;
+  backHref?: string;
 }
 
 function toIST(utcDate: string): string {
@@ -64,7 +89,7 @@ function PointsBadge({ points }: { points: number | null }) {
   );
 }
 
-export default function HistoryClient({ predictions }: Props) {
+export default function HistoryClient({ predictions, profileName, backHref }: Props) {
   const [summaries, setSummaries] = useState<Record<number, MatchSummary>>({});
 
   useEffect(() => {
@@ -110,7 +135,7 @@ export default function HistoryClient({ predictions }: Props) {
         }}
       >
         <Link
-          href="/predict"
+          href={backHref ?? "/predict"}
           style={{
             width: 36,
             height: 36,
@@ -139,7 +164,7 @@ export default function HistoryClient({ predictions }: Props) {
               letterSpacing: 0.3,
             }}
           >
-            My Predictions
+            {profileName ?? "My Predictions"}
           </span>
         </div>
         <span
@@ -343,7 +368,7 @@ export default function HistoryClient({ predictions }: Props) {
                       marginBottom: 3,
                     }}
                   >
-                    Your prediction
+                    {profileName ? `${profileName}'s pick` : "Your prediction"}
                   </div>
                   <div
                     style={{
