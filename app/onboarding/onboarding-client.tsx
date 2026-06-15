@@ -35,17 +35,39 @@ const FLAG_EMOJI: Record<string, string> = {
 const TOTAL_STEPS = 6;
 const STEP_LABELS = ["Invite", "Sign in", "How it works", "Primary pick", "Wildcard pick", "Your name"];
 
+type NameStatus = "idle" | "checking" | "taken" | "available";
+
 export default function OnboardingClient({ userEmail, userId, league, nations, memberCount, takenWildcardIds }: Props) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [primaryNationId, setPrimaryNationId] = useState<number | null>(null);
   const [secondaryNationId, setSecondaryNationId] = useState<number | null>(null);
   const [profileName, setProfileName] = useState("");
+  const [nameStatus, setNameStatus] = useState<NameStatus>("idle");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const top15 = nations.filter(n => (n.fifa_ranking ?? 99) <= 15);
   const rest = nations.filter(n => (n.fifa_ranking ?? 99) > 15);
+
+  useEffect(() => {
+    const trimmed = profileName.trim();
+    if (!trimmed) { setNameStatus("idle"); return; }
+
+    setNameStatus("checking");
+    const timer = setTimeout(async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("league_members")
+        .select("id")
+        .eq("league_id", league.id)
+        .ilike("profile_name", trimmed)
+        .maybeSingle();
+      setNameStatus(data ? "taken" : "available");
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [profileName, league.id]);
 
   useEffect(() => {
     if (step === 1) { const t = setTimeout(() => setStep(2), 1000); return () => clearTimeout(t); }
@@ -124,7 +146,7 @@ export default function OnboardingClient({ userEmail, userId, league, nations, m
           />
         )}
         {step === 6 && (
-          <StepProfile profileName={profileName} onChange={setProfileName} error={error} />
+          <StepProfile profileName={profileName} onChange={setProfileName} nameStatus={nameStatus} error={error} />
         )}
       </div>
 
@@ -149,13 +171,13 @@ export default function OnboardingClient({ userEmail, userId, league, nations, m
           {step === 6 && (
             <button
               onClick={handleSave}
-              disabled={!profileName.trim() || saving}
+              disabled={!profileName.trim() || saving || nameStatus === "taken" || nameStatus === "checking" || nameStatus === "idle"}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
-                cursor: profileName.trim() && !saving ? "pointer" : "not-allowed",
-                backgroundColor: profileName.trim() && !saving ? "var(--g3)" : "var(--n8)",
-                color: profileName.trim() && !saving ? "#fff" : "var(--n5)",
+                cursor: profileName.trim() && !saving && nameStatus === "available" ? "pointer" : "not-allowed",
+                backgroundColor: profileName.trim() && !saving && nameStatus === "available" ? "var(--g3)" : "var(--n8)",
+                color: profileName.trim() && !saving && nameStatus === "available" ? "#fff" : "var(--n5)",
                 fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 16, transition: "background-color 0.2s",
               }}
             >
@@ -268,7 +290,17 @@ function StepNationPicker({ title, subtitle, nations, selectedId, onSelect, take
   );
 }
 
-function StepProfile({ profileName, onChange, error }: { profileName: string; onChange: (v: string) => void; error: string | null }) {
+function StepProfile({ profileName, onChange, nameStatus, error }: {
+  profileName: string;
+  onChange: (v: string) => void;
+  nameStatus: NameStatus;
+  error: string | null;
+}) {
+  const borderColor =
+    nameStatus === "taken" ? "var(--r2)" :
+    nameStatus === "available" ? "var(--g3)" :
+    "var(--n8)";
+
   return (
     <div style={{ paddingBottom: 16 }}>
       <div style={{ marginBottom: 24 }}>
@@ -283,14 +315,25 @@ function StepProfile({ profileName, onChange, error }: { profileName: string; on
         maxLength={40}
         style={{
           display: "block", width: "100%", padding: "14px 16px", borderRadius: 12,
-          border: "2px solid var(--n8)", backgroundColor: "var(--surf)", fontSize: 16,
+          border: `2px solid ${borderColor}`, backgroundColor: "var(--surf)", fontSize: 16,
           fontFamily: "var(--font-inter), sans-serif", color: "var(--n0)", outline: "none",
           boxSizing: "border-box", transition: "border-color 0.15s",
         }}
-        onFocus={e => { e.currentTarget.style.borderColor = "var(--g3)"; }}
-        onBlur={e => { e.currentTarget.style.borderColor = "var(--n8)"; }}
       />
-      {error && <p style={{ fontSize: 13, color: "var(--r2)", marginTop: 12, fontFamily: "var(--font-inter), sans-serif" }}>{error}</p>}
+      {nameStatus === "checking" && profileName.trim() && (
+        <p style={{ fontSize: 13, color: "var(--n5)", marginTop: 10, fontFamily: "var(--font-inter), sans-serif" }}>Checking…</p>
+      )}
+      {nameStatus === "taken" && (
+        <p style={{ fontSize: 13, color: "var(--r2)", marginTop: 10, fontFamily: "var(--font-inter), sans-serif" }}>
+          That name is already taken — try a different one.
+        </p>
+      )}
+      {nameStatus === "available" && (
+        <p style={{ fontSize: 13, color: "var(--g3)", marginTop: 10, fontFamily: "var(--font-inter), sans-serif" }}>
+          ✓ Name is available
+        </p>
+      )}
+      {error && <p style={{ fontSize: 13, color: "var(--r2)", marginTop: 10, fontFamily: "var(--font-inter), sans-serif" }}>{error}</p>}
     </div>
   );
 }
