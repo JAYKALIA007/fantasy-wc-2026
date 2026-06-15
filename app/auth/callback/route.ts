@@ -16,7 +16,26 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/join?error=auth_failed`);
   }
 
-  // Check platform_settings to decide if user is auto-approved or waitlisted
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.redirect(`${origin}/join?error=auth_failed`);
+  }
+
+  // Existing members always get through — capacity gate is for new signups only
+  const { data: existing } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (existing) {
+    return NextResponse.redirect(`${origin}/onboarding`);
+  }
+
+  // New user — check platform capacity
   const { data: settings } = await supabase
     .from("platform_settings")
     .select("total_users, free_slots")
@@ -27,24 +46,8 @@ export async function GET(request: Request) {
   const freeSlots = settings?.free_slots ?? 20;
 
   if (totalUsers < freeSlots) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user) {
-      const { data: existing } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      await supabase.from("profiles").upsert({ id: user.id });
-
-      if (!existing) {
-        await supabase.rpc("increment_total_users");
-      }
-    }
-
+    await supabase.from("profiles").upsert({ id: user.id });
+    await supabase.rpc("increment_total_users");
     return NextResponse.redirect(`${origin}/onboarding`);
   }
 
