@@ -1,13 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// ESPN uses different names for some nations — map our DB names to ESPN names
+// ESPN name overrides — only add entries where ESPN's displayName actually differs from our DB name
+// Verified against ESPN scoreboard API June 2026: Türkiye, Ivory Coast, Bosnia-Herzegovina, United States all match our DB names directly
 const ESPN_NAME_MAP: Record<string, string> = {
-  "Türkiye": "Turkey",
-  "Ivory Coast": "Côte d'Ivoire",
-  "Congo DR": "DR Congo",
-  "Bosnia-Herzegovina": "Bosnia and Herzegovina",
-  "United States": "USA",
+  "Congo DR": "DR Congo", // unconfirmed — verify when Congo DR plays
 };
 
 function toEspnName(name: string): string {
@@ -38,30 +35,28 @@ interface EspnEvent {
   }>;
 }
 
-async function fetchEspnScore(
-  homeTeam: string,
-  awayTeam: string,
-  kickoffDate: string
-): Promise<{ home: number; away: number } | null> {
-  // ESPN scoreboard API — date format YYYYMMDD
-  const d = new Date(kickoffDate);
-  const dateStr = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
+function toDateStr(d: Date): string {
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
+}
 
+async function fetchEspnEvents(dateStr: string): Promise<EspnEvent[]> {
   const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=${dateStr}`;
-
-  let data: { events?: EspnEvent[] };
   try {
     const res = await fetch(url, { headers: { "User-Agent": "fantasy-wc-2026/1.0" } });
-    if (!res.ok) return null;
-    data = await res.json() as { events?: EspnEvent[] };
+    if (!res.ok) return [];
+    const data = await res.json() as { events?: EspnEvent[] };
+    return data.events ?? [];
   } catch {
-    return null;
+    return [];
   }
+}
 
-  const espnHome = toEspnName(homeTeam).toLowerCase();
-  const espnAway = toEspnName(awayTeam).toLowerCase();
-
-  for (const event of data.events ?? []) {
+function findScoreInEvents(
+  events: EspnEvent[],
+  espnHome: string,
+  espnAway: string
+): { home: number; away: number } | null {
+  for (const event of events) {
     for (const competition of event.competitions ?? []) {
       if (!competition.status?.type?.completed) continue;
 
@@ -82,6 +77,27 @@ async function fetchEspnScore(
         }
       }
     }
+  }
+  return null;
+}
+
+async function fetchEspnScore(
+  homeTeam: string,
+  awayTeam: string,
+  kickoffDate: string
+): Promise<{ home: number; away: number } | null> {
+  const d = new Date(kickoffDate);
+  const espnHome = toEspnName(homeTeam).toLowerCase();
+  const espnAway = toEspnName(awayTeam).toLowerCase();
+
+  // Try the UTC kickoff date first, then the previous day — ESPN sometimes lists
+  // early-UTC matches (e.g. 02:00 UTC) under the prior calendar day in US local time.
+  const datesToTry = [toDateStr(d), toDateStr(new Date(d.getTime() - 24 * 60 * 60 * 1000))];
+
+  for (const dateStr of datesToTry) {
+    const events = await fetchEspnEvents(dateStr);
+    const score = findScoreInEvents(events, espnHome, espnAway);
+    if (score) return score;
   }
 
   return null;
@@ -190,7 +206,7 @@ serve(async (_req: Request) => {
 
       await supabase.from("nation_bonus_points").delete().eq("match_id", match.id);
 
-      const bonusRecords = [];
+      const bonusRecords: { league_member_id: string; match_id: number; nation_id: number; pick_type: string; points: number }[] = [];
       for (const member of leagueMembers ?? []) {
         const primary = member.primary_nation_id as number | null;
         const secondary = member.secondary_nation_id as number | null;
