@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { FifaCard } from "@/components/fifa-card";
 import type { CardType } from "@/components/fifa-card";
+import { Countdown } from "@/components/countdown";
 
 interface Nation {
   id: number;
@@ -39,6 +40,7 @@ interface LeaderboardRow {
   joined_at: string;
 }
 
+// All users are in India — IST offset is intentionally hardcoded.
 function toIST(utcDate: string): string {
   const d = new Date(utcDate);
   const istMs = d.getTime() + 5.5 * 60 * 60 * 1000;
@@ -533,7 +535,7 @@ export default async function HomePage() {
                   }}
                 >
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--r2)", display: "inline-block" }} />
-                  {formatCountdown(nextMatch.kickoff_time)}
+                  <Countdown kickoffUtc={nextMatch.kickoff_time} />
                 </div>
               )}
             </div>

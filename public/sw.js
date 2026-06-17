@@ -1,4 +1,5 @@
-const CACHE_NAME = "fantasy-wc-2026-v2";
+// Bump this version string on every production deploy to evict stale caches.
+const CACHE_NAME = "fantasy-wc-2026-v3";
 
 const STATIC_ASSETS = [
   "/",

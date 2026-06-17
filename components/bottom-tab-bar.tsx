@@ -7,7 +7,6 @@ interface TabItem {
   href: string;
   label: string;
   icon: (active: boolean) => React.ReactNode;
-  badge?: boolean;
 }
 
 const tabs: TabItem[] = [
@@ -20,7 +19,6 @@ const tabs: TabItem[] = [
     href: "/predict",
     label: "Predict",
     icon: (active) => <TargetIcon active={active} />,
-    badge: true,
   },
   {
     href: "/nation",
@@ -54,13 +52,6 @@ export function BottomTabBar() {
           >
             <span className="relative">
               {tab.icon(isActive)}
-              {tab.badge && !isActive && (
-                <span
-                  className="absolute -right-1 -top-1 h-2 w-2 rounded-full"
-                  style={{ backgroundColor: "var(--r2)" }}
-                  aria-label="predictions due"
-                />
-              )}
             </span>
             <span
               className="text-[10px] font-semibold uppercase tracking-wide"
