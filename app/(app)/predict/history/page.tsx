@@ -67,9 +67,20 @@ export default async function HistoryPage() {
     };
   });
 
-  const sorted = predictions.sort(
-    (a, b) => new Date(b.match.kickoff_time).getTime() - new Date(a.match.kickoff_time).getTime()
-  );
+  const now = new Date();
+
+  const isLive = (p: PredictionRecord) =>
+    p.match.status !== "finished" && new Date(p.match.kickoff_time) < now;
+
+  const live = predictions.filter(isLive);
+  const finished = predictions
+    .filter((p) => p.match.status === "finished")
+    .sort((a, b) => new Date(b.match.kickoff_time).getTime() - new Date(a.match.kickoff_time).getTime());
+  const upcoming = predictions
+    .filter((p) => !isLive(p) && p.match.status !== "finished")
+    .sort((a, b) => new Date(a.match.kickoff_time).getTime() - new Date(b.match.kickoff_time).getTime());
+
+  const sorted = [...live, ...finished, ...upcoming];
 
   return <HistoryClient predictions={sorted} />;
 }
