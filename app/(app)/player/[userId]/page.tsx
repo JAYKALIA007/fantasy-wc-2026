@@ -111,16 +111,16 @@ export default async function PlayerPredictionsPage({
     })
     .filter((p): p is PredictionRecord => p !== null);
 
-  // Finished first (newest first), in-progress second (oldest first)
+  const nowDate = new Date();
+  const isLive = (p: PredictionRecord) =>
+    p.match.status !== "finished" && new Date(p.match.kickoff_time) < nowDate;
+
+  const live = predictions.filter(isLive);
   const finished = predictions
     .filter((p) => p.match.status === "finished")
     .sort((a, b) => new Date(b.match.kickoff_time).getTime() - new Date(a.match.kickoff_time).getTime());
 
-  const inProgress = predictions
-    .filter((p) => p.match.status !== "finished")
-    .sort((a, b) => new Date(a.match.kickoff_time).getTime() - new Date(b.match.kickoff_time).getTime());
-
-  const sorted = [...finished, ...inProgress];
+  const sorted = [...live, ...finished];
 
   return (
     <HistoryClient
