@@ -194,5 +194,19 @@ export async function POST(request: Request) {
     }
   }
 
+  // Fire "scores updated" push notification — fire-and-forget, don't block response
+  void fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://fantasy-wc-2026-ashy.vercel.app"}/api/push/send`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({
+      title: "Scores in! 🏆",
+      body: "Match results are updated — check the leaderboard.",
+      url: "/ranks",
+    }),
+  }).catch(() => {});
+
   return Response.json({ ok: true });
 }

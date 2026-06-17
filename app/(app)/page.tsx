@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { FifaCard } from "@/components/fifa-card";
 import type { CardType } from "@/components/fifa-card";
 import { Countdown } from "@/components/countdown";
+import { NotificationPrompt } from "@/components/notification-prompt";
 
 interface Nation {
   id: number;
@@ -864,6 +865,9 @@ export default async function HomePage() {
             </span>
           </div>
         </Link>
+
+        {/* Notification prompt */}
+        <NotificationPrompt />
 
         {/* Needs attention */}
         {unpredictedCount > 0 && openMatches.length > 0 && (
