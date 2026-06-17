@@ -196,8 +196,9 @@ export default async function NationPage() {
             >
               How Pick Your Nation Works
             </h2>
-            <Link href="/rules" style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--g3)", textDecoration: "none", flexShrink: 0 }}>
-              Full rules →
+            <Link href="/rules" style={{ display: "flex", alignItems: "center", gap: 3, fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--g3)", textDecoration: "none", flexShrink: 0 }}>
+              Full rules
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4l4 4-4 4" /></svg>
             </Link>
           </div>
 

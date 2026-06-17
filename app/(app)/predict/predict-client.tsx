@@ -235,7 +235,10 @@ export default function PredictClient({ matches, existingPredictions, leagueId, 
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Link href="/rules" style={{ color: "var(--n5)", textDecoration: "none", fontSize: 18, lineHeight: 1, flexShrink: 0 }} title="How it works">ⓘ</Link>
-          <Link href="/predict/history" style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--g4)", textDecoration: "none", flexShrink: 0 }}>History →</Link>
+          <Link href="/predict/history" style={{ display: "flex", alignItems: "center", gap: 3, fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--g4)", textDecoration: "none", flexShrink: 0 }}>
+            History
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4l4 4-4 4" /></svg>
+          </Link>
         </div>
       </div>
 

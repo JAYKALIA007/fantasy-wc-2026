@@ -1051,7 +1051,10 @@ export default async function HomePage() {
                     color: "var(--n5)",
                   }}
                 >
-                  Full →
+                  <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                    Full
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4l4 4-4 4" /></svg>
+                  </span>
                 </span>
               </div>
               {top5.map((row, idx) => {
