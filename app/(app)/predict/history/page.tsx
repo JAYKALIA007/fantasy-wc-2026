@@ -67,16 +67,9 @@ export default async function HistoryPage() {
     };
   });
 
-  // Sort: finished with points first (desc by kickoff_time), then upcoming (asc by kickoff_time)
-  const finished = predictions
-    .filter((p) => p.match.status === "finished")
-    .sort((a, b) => new Date(b.match.kickoff_time).getTime() - new Date(a.match.kickoff_time).getTime());
-
-  const upcoming = predictions
-    .filter((p) => p.match.status !== "finished")
-    .sort((a, b) => new Date(a.match.kickoff_time).getTime() - new Date(b.match.kickoff_time).getTime());
-
-  const sorted = [...finished, ...upcoming];
+  const sorted = predictions.sort(
+    (a, b) => new Date(b.match.kickoff_time).getTime() - new Date(a.match.kickoff_time).getTime()
+  );
 
   return <HistoryClient predictions={sorted} />;
 }

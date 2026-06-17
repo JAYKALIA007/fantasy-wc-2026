@@ -116,11 +116,10 @@ export default async function HomePage() {
     leagueDataResult,
     nextMatchResult,
     openMatchesResult,
-    predScoreResult,
-    totalMembersResult,
     recentMatchesResult,
     allMembersResult,
     allScoresResult,
+    liveMatchResult,
   ] = await Promise.all([
     supabase
       .from("leagues")
@@ -152,19 +151,6 @@ export default async function HomePage() {
       .limit(5),
 
     supabase
-      .from("prediction_round_scores")
-      .select("total_points")
-      .eq("user_id", user.id)
-      .eq("league_id", leagueId)
-      .eq("round_id", "a0000000-0000-0000-0000-000000000001")
-      .maybeSingle(),
-
-    supabase
-      .from("league_members")
-      .select("id", { count: "exact", head: true })
-      .eq("league_id", leagueId),
-
-    supabase
       .from("matches")
       .select(
         `id, kickoff_time, group_label, home_score, away_score,
@@ -185,10 +171,48 @@ export default async function HomePage() {
       .select("user_id, total_points")
       .eq("league_id", leagueId)
       .eq("round_id", "a0000000-0000-0000-0000-000000000001"),
+
+    supabase
+      .from("matches")
+      .select(
+        `id, kickoff_time, group_label, home_score, away_score,
+         home_nation:home_nation_id(name, flag_code),
+         away_nation:away_nation_id(name, flag_code)`
+      )
+      .eq("status", "live")
+      .order("kickoff_time", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const leagueData = leagueDataResult.data;
   const isCreator = leagueData?.creator_id === user.id;
+
+  // Live match + user's prediction on it
+  const liveMatchRaw = liveMatchResult.data;
+  type LiveMatch = { id: number; kickoff_time: string; group_label: string | null; home_score: number | null; away_score: number | null; home_nation: { name: string; flag_code: string }; away_nation: { name: string; flag_code: string } };
+  const liveMatch: LiveMatch | null = liveMatchRaw
+    ? {
+        id: liveMatchRaw.id as number,
+        kickoff_time: liveMatchRaw.kickoff_time as string,
+        group_label: liveMatchRaw.group_label as string | null,
+        home_score: liveMatchRaw.home_score as number | null,
+        away_score: liveMatchRaw.away_score as number | null,
+        home_nation: Array.isArray(liveMatchRaw.home_nation) ? liveMatchRaw.home_nation[0] : (liveMatchRaw.home_nation as { name: string; flag_code: string }),
+        away_nation: Array.isArray(liveMatchRaw.away_nation) ? liveMatchRaw.away_nation[0] : (liveMatchRaw.away_nation as { name: string; flag_code: string }),
+      }
+    : null;
+
+  const livePredResult = liveMatch
+    ? await supabase
+        .from("predictions")
+        .select("predicted_home_score, predicted_away_score")
+        .eq("user_id", user.id)
+        .eq("league_id", leagueId)
+        .eq("match_id", liveMatch.id)
+        .maybeSingle()
+    : null;
+  const livePred = livePredResult?.data ?? null;
   const adminUserId = leagueData?.creator_id as string | null;
 
   const nextMatchRaw = nextMatchResult.data;
@@ -224,9 +248,6 @@ export default async function HomePage() {
       : (m.away_nation as Nation),
   }));
 
-  const predScore = predScoreResult.data;
-  const totalMembers = totalMembersResult.count;
-
   // Process recent matches
   const recentMatches: FinishedMatch[] = (recentMatchesResult.data ?? []).map((m) => ({
     id: m.id as number,
@@ -260,15 +281,8 @@ export default async function HomePage() {
   const memberIds = Array.from(memberIdToUserId.keys());
 
   // Fetch sequential data in parallel
-  const [higherCountResult, predictedCountOrNull, recentPredictionsResult, nationBonusesResult] =
+  const [predictedCountOrNull, recentPredictionsResult, nationBonusesResult] =
     await Promise.all([
-      supabase
-        .from("prediction_round_scores")
-        .select("id", { count: "exact", head: true })
-        .eq("league_id", leagueId)
-        .eq("round_id", "a0000000-0000-0000-0000-000000000001")
-        .gt("total_points", predScore?.total_points ?? -1),
-
       openMatches.length > 0
         ? supabase
             .from("predictions")
@@ -295,7 +309,6 @@ export default async function HomePage() {
         : Promise.resolve({ data: [] as Array<{ league_member_id: string; points: number }> }),
     ]);
 
-  const predRank = predScore ? (higherCountResult.count ?? 0) + 1 : null;
   const predictedCount = predictedCountOrNull?.count ?? 0;
   const unpredictedCount = openMatches.length - predictedCount;
 
@@ -336,6 +349,10 @@ export default async function HomePage() {
     if (b.total_points !== a.total_points) return b.total_points - a.total_points;
     return new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime();
   });
+
+  const myLeaderboardIdx = leaderboardRows.findIndex((r) => r.user_id === user.id);
+  const predRank = myLeaderboardIdx !== -1 ? myLeaderboardIdx + 1 : null;
+
   const top5 = leaderboardRows.slice(0, 5);
 
   // Avatar
@@ -646,6 +663,176 @@ export default async function HomePage() {
               >
                 My squad
               </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Live now card */}
+        {liveMatch && (
+          <div
+            style={{
+              background: "var(--n1)",
+              borderRadius: 16,
+              padding: "14px 16px",
+              boxShadow: "var(--sh-md)",
+              border: "1px solid rgba(226,59,72,0.3)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 12,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: "var(--r2)",
+                    display: "inline-block",
+                    animation: "pulse 1.5s ease-in-out infinite",
+                  }}
+                />
+                <span
+                  style={{
+                    fontFamily: "var(--font-saira), sans-serif",
+                    fontWeight: 700,
+                    fontSize: 12,
+                    color: "var(--r3)",
+                    textTransform: "uppercase",
+                    letterSpacing: 1,
+                  }}
+                >
+                  Live now
+                </span>
+                {liveMatch.group_label && (
+                  <span
+                    style={{
+                      fontFamily: "var(--font-saira), sans-serif",
+                      fontSize: 11,
+                      color: "rgba(255,255,255,0.35)",
+                    }}
+                  >
+                    · Group {liveMatch.group_label}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              {/* Home */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                <span
+                  style={{
+                    fontFamily: "var(--font-saira), sans-serif",
+                    fontWeight: 700,
+                    fontSize: 14,
+                    color: "#fff",
+                  }}
+                >
+                  {liveMatch.home_nation.flag_code} {liveMatch.home_nation.name}
+                </span>
+              </div>
+
+              {/* Score */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                {liveMatch.home_score != null && liveMatch.away_score != null ? (
+                  <span
+                    style={{
+                      fontFamily: "var(--font-anton), sans-serif",
+                      fontSize: 24,
+                      color: "#fff",
+                      letterSpacing: 2,
+                    }}
+                  >
+                    {liveMatch.home_score} – {liveMatch.away_score}
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      fontFamily: "var(--font-saira), sans-serif",
+                      fontWeight: 700,
+                      fontSize: 16,
+                      color: "rgba(255,255,255,0.5)",
+                    }}
+                  >
+                    vs
+                  </span>
+                )}
+              </div>
+
+              {/* Away */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+                <span
+                  style={{
+                    fontFamily: "var(--font-saira), sans-serif",
+                    fontWeight: 700,
+                    fontSize: 14,
+                    color: "#fff",
+                    textAlign: "right",
+                  }}
+                >
+                  {liveMatch.away_nation.name} {liveMatch.away_nation.flag_code}
+                </span>
+              </div>
+            </div>
+
+            {/* User's prediction */}
+            <div
+              style={{
+                marginTop: 12,
+                paddingTop: 12,
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "var(--font-inter), sans-serif",
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.45)",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Your pick
+              </span>
+              {livePred ? (
+                <span
+                  style={{
+                    fontFamily: "var(--font-anton), sans-serif",
+                    fontSize: 18,
+                    color: "var(--g4)",
+                    letterSpacing: 1,
+                  }}
+                >
+                  {livePred.predicted_home_score} – {livePred.predicted_away_score}
+                </span>
+              ) : (
+                <span
+                  style={{
+                    fontFamily: "var(--font-inter), sans-serif",
+                    fontSize: 12,
+                    color: "var(--n6)",
+                    fontStyle: "italic",
+                  }}
+                >
+                  No prediction made
+                </span>
+              )}
             </div>
           </div>
         )}
