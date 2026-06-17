@@ -179,8 +179,9 @@ export default async function HomePage() {
          home_nation:home_nation_id(name, flag_code),
          away_nation:away_nation_id(name, flag_code)`
       )
-      .eq("status", "live")
-      .order("kickoff_time", { ascending: true })
+      .eq("status", "scheduled")
+      .lt("kickoff_time", now)
+      .order("kickoff_time", { ascending: false })
       .limit(1)
       .maybeSingle(),
   ]);
