@@ -108,6 +108,7 @@ function RankList({
           <Link
             key={row.user_id}
             href={`/player/${row.user_id}`}
+            className="active:opacity-70 transition-opacity"
             style={{
               display: "flex",
               alignItems: "center",
@@ -193,6 +194,9 @@ function RankList({
                 )}
               </div>
             </div>
+
+            {/* Tap affordance */}
+            <span style={{ color: "var(--n7)", fontSize: 18, flexShrink: 0, marginLeft: 2 }}>›</span>
           </Link>
         );
       })}
