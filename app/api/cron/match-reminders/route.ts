@@ -1,28 +1,27 @@
 import { createClient } from "@supabase/supabase-js";
 import webpush from "web-push";
 
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT!,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function POST(request: Request) {
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT!,
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+    process.env.VAPID_PRIVATE_KEY!
+  );
+
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
   const now = new Date();
   const windowStart = new Date(now.getTime() + 45 * 60 * 1000).toISOString();
   const windowEnd = new Date(now.getTime() + 75 * 60 * 1000).toISOString();
 
-  // Find matches starting in the next 45–75 minutes that haven't been reminded yet
   const { data: matches, error } = await supabaseAdmin
     .from("matches")
     .select("id, kickoff_time, home_nation:home_nation_id(name, flag_code), away_nation:away_nation_id(name, flag_code)")
@@ -39,13 +38,11 @@ export async function POST(request: Request) {
     return Response.json({ sent: 0, message: "No matches in window" });
   }
 
-  // Fetch all push subscriptions
   const { data: subscriptions } = await supabaseAdmin
     .from("push_subscriptions")
     .select("subscription");
 
   const subs = subscriptions ?? [];
-
   let totalSent = 0;
 
   for (const match of matches) {
@@ -68,7 +65,6 @@ export async function POST(request: Request) {
       )
     );
 
-    // Mark reminder as sent
     await supabaseAdmin
       .from("matches")
       .update({ reminder_sent_at: new Date().toISOString() })
