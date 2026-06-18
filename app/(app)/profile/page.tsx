@@ -43,28 +43,56 @@ export default async function ProfilePage() {
   const primaryNation = (Array.isArray(membership.primary_nation) ? membership.primary_nation[0] : membership.primary_nation) as NationBasic | null;
   const secondaryNation = (Array.isArray(membership.secondary_nation) ? membership.secondary_nation[0] : membership.secondary_nation) as NationBasic | null;
 
-  const [myScoreResult, allScoresResult, nationBonusResult, predsResult, leagueResult] = await Promise.all([
+  const [myScoreResult, allScoresResult, nationBonusResult, predsResult, leagueResult, allMembersResult] = await Promise.all([
     supabase.from("prediction_round_scores").select("total_points").eq("user_id", user.id).eq("league_id", leagueId).eq("round_id", ROUND_ID).maybeSingle(),
     supabase.from("prediction_round_scores").select("user_id, total_points").eq("league_id", leagueId).eq("round_id", ROUND_ID),
     supabase.from("nation_bonus_points").select("match_id, points").eq("league_member_id", memberId),
     supabase.from("predictions").select(`match_id, predicted_home_score, predicted_away_score, points,
       match:match_id(kickoff_time, home_score, away_score, status)`).eq("user_id", user.id).eq("league_id", leagueId),
     supabase.from("leagues").select("creator_id").eq("id", leagueId).maybeSingle(),
+    supabase.from("league_members").select("id, user_id").eq("league_id", leagueId),
   ]);
 
   const adminUserId = leagueResult.data?.creator_id as string | null;
 
-  const nationBonus = (nationBonusResult.data ?? []).reduce((s, r) => s + (r.points as number), 0);
+  // Build member_id → user_id map (excluding admin)
+  const memberIdToUserId = new Map<string, string>();
+  for (const m of (allMembersResult.data ?? [])) {
+    if (m.user_id !== adminUserId) memberIdToUserId.set(m.id as string, m.user_id as string);
+  }
+
+  // Fetch all members' nation bonuses to compute accurate rank
+  const allMemberIds = Array.from(memberIdToUserId.keys());
+  const { data: allNationBonusRows } = allMemberIds.length > 0
+    ? await supabase.from("nation_bonus_points").select("league_member_id, points").in("league_member_id", allMemberIds)
+    : { data: [] as { league_member_id: string; points: number }[] };
+
+  const nationBonusByUser = new Map<string, number>();
+  for (const nb of (allNationBonusRows ?? [])) {
+    const uid = memberIdToUserId.get(nb.league_member_id as string);
+    if (uid) nationBonusByUser.set(uid, (nationBonusByUser.get(uid) ?? 0) + (nb.points as number));
+  }
+
+  const nationBonus = nationBonusByUser.get(user.id) ?? 0;
   const myPredPoints = myScoreResult.data?.total_points as number ?? 0;
   const totalPoints = myPredPoints + nationBonus;
 
-  // Compute rank — exclude admin, add nation bonus to everyone
-  const allMemberBonuses = new Map<string, number>();
-  // We only have our own nation bonus here; for rank we can compare prediction_points only (consistent)
+  // Compute rank — exclude admin, include nation bonus for all users (matches ranks page logic)
   const allScores = (allScoresResult.data ?? []).filter(s => s.user_id !== adminUserId);
-  const sortedScores = [...allScores].sort((a, b) => (b.total_points as number) - (a.total_points as number));
-  const myScoreEntry = sortedScores.find(s => s.user_id === user.id);
-  const myRank = myScoreEntry ? sortedScores.indexOf(myScoreEntry) + 1 : sortedScores.length + 1;
+  const allScoresWithBonus = allScores.map(s => ({
+    user_id: s.user_id as string,
+    total_points: (s.total_points as number) + (nationBonusByUser.get(s.user_id as string) ?? 0),
+  }));
+  // Include members with no prediction_round_scores row yet
+  for (const [uid] of memberIdToUserId.entries()) {
+    const userId = uid;
+    if (!allScoresWithBonus.find(s => s.user_id === userId)) {
+      const nbUid = memberIdToUserId.get(uid)!;
+      allScoresWithBonus.push({ user_id: nbUid, total_points: nationBonusByUser.get(nbUid) ?? 0 });
+    }
+  }
+  const sortedScores = [...allScoresWithBonus].sort((a, b) => b.total_points - a.total_points);
+  const myRank = sortedScores.findIndex(s => s.user_id === user.id) + 1 || sortedScores.length + 1;
   const totalPlayers = sortedScores.length || 1;
 
   // Prediction stats — only kicked-off matches

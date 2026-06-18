@@ -96,7 +96,7 @@ function RankList({
         return (
           <Link
             key={row.user_id}
-            href={`/player/${row.user_id}`}
+            href={isMe ? "/profile" : `/player/${row.user_id}`}
             className="active:opacity-70 transition-opacity"
             style={{
               display: "flex",

@@ -3,6 +3,21 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 
+const FLAG_EMOJI: Record<string, string> = {
+  "Argentina": "🇦🇷", "France": "🇫🇷", "Spain": "🇪🇸", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+  "Brazil": "🇧🇷", "Portugal": "🇵🇹", "Netherlands": "🇳🇱", "Belgium": "🇧🇪",
+  "Colombia": "🇨🇴", "Uruguay": "🇺🇾", "Croatia": "🇭🇷", "Germany": "🇩🇪",
+  "Morocco": "🇲🇦", "United States": "🇺🇸", "Japan": "🇯🇵", "Mexico": "🇲🇽",
+  "Switzerland": "🇨🇭", "Senegal": "🇸🇳", "Iran": "🇮🇷", "South Korea": "🇰🇷",
+  "Egypt": "🇪🇬", "Australia": "🇦🇺", "Austria": "🇦🇹", "Ecuador": "🇪🇨",
+  "Türkiye": "🇹🇷", "Norway": "🇳🇴", "Sweden": "🇸🇪", "Tunisia": "🇹🇳",
+  "Algeria": "🇩🇿", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "Ivory Coast": "🇨🇮", "Paraguay": "🇵🇾",
+  "Saudi Arabia": "🇸🇦", "Czechia": "🇨🇿", "Ghana": "🇬🇭", "South Africa": "🇿🇦",
+  "Qatar": "🇶🇦", "Congo DR": "🇨🇩", "Panama": "🇵🇦", "Bosnia-Herzegovina": "🇧🇦",
+  "Canada": "🇨🇦", "Uzbekistan": "🇺🇿", "Cape Verde": "🇨🇻", "Iraq": "🇮🇶",
+  "Jordan": "🇯🇴", "New Zealand": "🇳🇿", "Haiti": "🇭🇹", "Curaçao": "🇨🇼",
+};
+
 interface NationInfo {
   name: string;
   flag_code: string;
@@ -104,6 +119,10 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
   const [summaries, setSummaries] = useState<Record<number, MatchSummary>>({});
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
+  const finishedPreds = predictions.filter(p => p.match.status === "finished");
+  const correctCount = finishedPreds.filter(p => (p.points ?? 0) >= 1).length;
+  const exactCount = finishedPreds.filter(p => (p.points ?? 0) >= 3).length;
+
   useEffect(() => {
     const finishedIds = predictions
       .filter((p) => p.match.status === "finished")
@@ -188,7 +207,7 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
                     color: "var(--n4)",
                   }}
                 >
-                  {primaryNation.flag_code} {primaryNation.name}
+                  {FLAG_EMOJI[primaryNation.name] ?? primaryNation.flag_code} {primaryNation.name}
                 </span>
               )}
               {secondaryNation && (
@@ -201,7 +220,7 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
                       color: "var(--n5)",
                     }}
                   >
-                    {secondaryNation.flag_code} {secondaryNation.name}
+                    {FLAG_EMOJI[secondaryNation.name] ?? secondaryNation.flag_code} {secondaryNation.name}
                   </span>
                 </>
               )}
@@ -225,15 +244,16 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
             </span>
           )}
           {predictions.length > 0 && (
-            <span
-              style={{
-                fontFamily: "var(--font-inter), sans-serif",
-                fontSize: 12,
-                color: "var(--n5)",
-              }}
-            >
-              {predictions.length} predictions
-            </span>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+              <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)" }}>
+                {predictions.length} made
+              </span>
+              {finishedPreds.length > 0 && (
+                <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n6)" }}>
+                  {correctCount} correct · {exactCount} exact
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>

@@ -69,6 +69,21 @@ function formatCountdown(kickoffUtc: string, deadlineUtc?: string | null): strin
   return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
 }
 
+const FLAG_EMOJI: Record<string, string> = {
+  "Argentina": "🇦🇷", "France": "🇫🇷", "Spain": "🇪🇸", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+  "Brazil": "🇧🇷", "Portugal": "🇵🇹", "Netherlands": "🇳🇱", "Belgium": "🇧🇪",
+  "Colombia": "🇨🇴", "Uruguay": "🇺🇾", "Croatia": "🇭🇷", "Germany": "🇩🇪",
+  "Morocco": "🇲🇦", "United States": "🇺🇸", "Japan": "🇯🇵", "Mexico": "🇲🇽",
+  "Switzerland": "🇨🇭", "Senegal": "🇸🇳", "Iran": "🇮🇷", "South Korea": "🇰🇷",
+  "Egypt": "🇪🇬", "Australia": "🇦🇺", "Austria": "🇦🇹", "Ecuador": "🇪🇨",
+  "Türkiye": "🇹🇷", "Norway": "🇳🇴", "Sweden": "🇸🇪", "Tunisia": "🇹🇳",
+  "Algeria": "🇩🇿", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "Ivory Coast": "🇨🇮", "Paraguay": "🇵🇾",
+  "Saudi Arabia": "🇸🇦", "Czechia": "🇨🇿", "Ghana": "🇬🇭", "South Africa": "🇿🇦",
+  "Qatar": "🇶🇦", "Congo DR": "🇨🇩", "Panama": "🇵🇦", "Bosnia-Herzegovina": "🇧🇦",
+  "Canada": "🇨🇦", "Uzbekistan": "🇺🇿", "Cape Verde": "🇨🇻", "Iraq": "🇮🇶",
+  "Jordan": "🇯🇴", "New Zealand": "🇳🇿", "Haiti": "🇭🇹", "Curaçao": "🇨🇼",
+};
+
 function FlagChip({ code }: { code: string }) {
   return (
     <div
@@ -769,7 +784,7 @@ export default async function HomePage() {
                     color: "#fff",
                   }}
                 >
-                  {liveMatch.home_nation.flag_code} {liveMatch.home_nation.name}
+                  {FLAG_EMOJI[liveMatch.home_nation.name] ?? liveMatch.home_nation.flag_code} {liveMatch.home_nation.name}
                 </span>
               </div>
 
@@ -811,7 +826,7 @@ export default async function HomePage() {
                     textAlign: "right",
                   }}
                 >
-                  {liveMatch.away_nation.name} {liveMatch.away_nation.flag_code}
+                  {liveMatch.away_nation.name} {FLAG_EMOJI[liveMatch.away_nation.name] ?? liveMatch.away_nation.flag_code}
                 </span>
               </div>
             </div>
@@ -968,7 +983,7 @@ export default async function HomePage() {
                         color: "var(--n0)",
                       }}
                     >
-                      {m.home_nation.flag_code} v {m.away_nation.flag_code} · predict
+                      {FLAG_EMOJI[m.home_nation.name] ?? m.home_nation.flag_code} v {FLAG_EMOJI[m.away_nation.name] ?? m.away_nation.flag_code} · predict
                     </div>
                     <div
                       style={{
@@ -1204,7 +1219,7 @@ export default async function HomePage() {
                         color: "var(--n0)",
                       }}
                     >
-                      {m.home_nation.flag_code} {m.home_score} – {m.away_score} {m.away_nation.flag_code}
+                      {FLAG_EMOJI[m.home_nation.name] ?? m.home_nation.flag_code} {m.home_score} – {m.away_score} {FLAG_EMOJI[m.away_nation.name] ?? m.away_nation.flag_code}
                     </span>
                     {myPred ? (
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
