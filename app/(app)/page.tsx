@@ -564,7 +564,7 @@ export default async function HomePage() {
               }}
             >
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                <FlagChip code={nextMatch.home_nation.flag_code} />
+                <span style={{ fontSize: 44, lineHeight: 1 }}>{FLAG_EMOJI[nextMatch.home_nation.name] ?? nextMatch.home_nation.flag_code}</span>
                 <span
                   style={{
                     fontFamily: "var(--font-saira), sans-serif",
@@ -619,7 +619,7 @@ export default async function HomePage() {
                 )}
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                <FlagChip code={nextMatch.away_nation.flag_code} />
+                <span style={{ fontSize: 44, lineHeight: 1 }}>{FLAG_EMOJI[nextMatch.away_nation.name] ?? nextMatch.away_nation.flag_code}</span>
                 <span
                   style={{
                     fontFamily: "var(--font-saira), sans-serif",
@@ -762,7 +762,7 @@ export default async function HomePage() {
                     color: "#fff",
                   }}
                 >
-                  {FLAG_EMOJI[liveMatch.home_nation.name] ?? liveMatch.home_nation.flag_code} {liveMatch.home_nation.name}
+                  {liveMatch.home_nation.flag_code} {liveMatch.home_nation.name}
                 </span>
               </div>
 
@@ -804,7 +804,7 @@ export default async function HomePage() {
                     textAlign: "right",
                   }}
                 >
-                  {liveMatch.away_nation.name} {FLAG_EMOJI[liveMatch.away_nation.name] ?? liveMatch.away_nation.flag_code}
+                  {liveMatch.away_nation.name} {liveMatch.away_nation.flag_code}
                 </span>
               </div>
             </div>
@@ -961,7 +961,7 @@ export default async function HomePage() {
                         color: "var(--n0)",
                       }}
                     >
-                      {FLAG_EMOJI[m.home_nation.name] ?? m.home_nation.flag_code} v {FLAG_EMOJI[m.away_nation.name] ?? m.away_nation.flag_code} · predict
+                      {m.home_nation.flag_code} v {m.away_nation.flag_code} · predict
                     </div>
                     <div
                       style={{
@@ -1197,7 +1197,7 @@ export default async function HomePage() {
                         color: "var(--n0)",
                       }}
                     >
-                      {FLAG_EMOJI[m.home_nation.name] ?? m.home_nation.flag_code} {m.home_score} – {m.away_score} {FLAG_EMOJI[m.away_nation.name] ?? m.away_nation.flag_code}
+                      {m.home_nation.flag_code} {m.home_score} – {m.away_score} {m.away_nation.flag_code}
                     </span>
                     {myPred ? (
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
