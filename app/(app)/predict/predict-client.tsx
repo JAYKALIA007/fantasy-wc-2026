@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { toISTTime, getISTDateKey, getDayLabel } from "@/lib/utils/date";
 
 interface Nation {
   id: number;
@@ -40,31 +41,6 @@ interface Props {
   nextUnlockLabel: string;
 }
 
-function toISTTime(utcDate: string): string {
-  const ist = new Date(new Date(utcDate).getTime() + 5.5 * 60 * 60 * 1000);
-  const hh = ist.getUTCHours().toString().padStart(2, "0");
-  const mm = ist.getUTCMinutes().toString().padStart(2, "0");
-  return `${hh}:${mm} IST`;
-}
-
-function getISTDateKey(utcDate: string): string {
-  const ist = new Date(new Date(utcDate).getTime() + 5.5 * 60 * 60 * 1000);
-  return `${ist.getUTCFullYear()}-${String(ist.getUTCMonth()).padStart(2, "0")}-${String(ist.getUTCDate()).padStart(2, "0")}`;
-}
-
-function getDayLabel(utcDate: string): string {
-  const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
-  const todayKey = `${nowIST.getUTCFullYear()}-${String(nowIST.getUTCMonth()).padStart(2, "0")}-${String(nowIST.getUTCDate()).padStart(2, "0")}`;
-  const tomorrowIST = new Date(nowIST.getTime() + 24 * 60 * 60 * 1000);
-  const tomorrowKey = `${tomorrowIST.getUTCFullYear()}-${String(tomorrowIST.getUTCMonth()).padStart(2, "0")}-${String(tomorrowIST.getUTCDate()).padStart(2, "0")}`;
-  const key = getISTDateKey(utcDate);
-  if (key === todayKey) return "Today";
-  if (key === tomorrowKey) return "Tomorrow";
-  const ist = new Date(new Date(utcDate).getTime() + 5.5 * 60 * 60 * 1000);
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${days[ist.getUTCDay()]} ${ist.getUTCDate()} ${months[ist.getUTCMonth()]}`;
-}
 
 function getCountdownChip(match: Match): { label: string; color: string; bg: string } {
   const now = Date.now();

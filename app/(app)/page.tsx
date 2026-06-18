@@ -5,6 +5,9 @@ import { FifaCard } from "@/components/fifa-card";
 import type { CardType } from "@/components/fifa-card";
 import { Countdown } from "@/components/countdown";
 import { NotificationPrompt } from "@/components/notification-prompt";
+import { FLAG_EMOJI } from "@/lib/utils/flags";
+import { toIST } from "@/lib/utils/date";
+import { ROUND_ID } from "@/lib/constants";
 
 interface Nation {
   id: number;
@@ -41,16 +44,6 @@ interface LeaderboardRow {
   joined_at: string;
 }
 
-// All users are in India — IST offset is intentionally hardcoded.
-function toIST(utcDate: string): string {
-  const d = new Date(utcDate);
-  const istMs = d.getTime() + 5.5 * 60 * 60 * 1000;
-  const ist = new Date(istMs);
-  const hh = ist.getUTCHours().toString().padStart(2, "0");
-  const mm = ist.getUTCMinutes().toString().padStart(2, "0");
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${ist.getUTCDate()} ${months[ist.getUTCMonth()]} · ${hh}:${mm} IST`;
-}
 
 function formatCountdown(kickoffUtc: string, deadlineUtc?: string | null): string {
   const now = Date.now();
@@ -68,21 +61,6 @@ function formatCountdown(kickoffUtc: string, deadlineUtc?: string | null): strin
   if (hours >= 24) return `${Math.floor(hours / 24)}d ${hours % 24}h`;
   return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
 }
-
-const FLAG_EMOJI: Record<string, string> = {
-  "Argentina": "🇦🇷", "France": "🇫🇷", "Spain": "🇪🇸", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-  "Brazil": "🇧🇷", "Portugal": "🇵🇹", "Netherlands": "🇳🇱", "Belgium": "🇧🇪",
-  "Colombia": "🇨🇴", "Uruguay": "🇺🇾", "Croatia": "🇭🇷", "Germany": "🇩🇪",
-  "Morocco": "🇲🇦", "United States": "🇺🇸", "Japan": "🇯🇵", "Mexico": "🇲🇽",
-  "Switzerland": "🇨🇭", "Senegal": "🇸🇳", "Iran": "🇮🇷", "South Korea": "🇰🇷",
-  "Egypt": "🇪🇬", "Australia": "🇦🇺", "Austria": "🇦🇹", "Ecuador": "🇪🇨",
-  "Türkiye": "🇹🇷", "Norway": "🇳🇴", "Sweden": "🇸🇪", "Tunisia": "🇹🇳",
-  "Algeria": "🇩🇿", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "Ivory Coast": "🇨🇮", "Paraguay": "🇵🇾",
-  "Saudi Arabia": "🇸🇦", "Czechia": "🇨🇿", "Ghana": "🇬🇭", "South Africa": "🇿🇦",
-  "Qatar": "🇶🇦", "Congo DR": "🇨🇩", "Panama": "🇵🇦", "Bosnia-Herzegovina": "🇧🇦",
-  "Canada": "🇨🇦", "Uzbekistan": "🇺🇿", "Cape Verde": "🇨🇻", "Iraq": "🇮🇶",
-  "Jordan": "🇯🇴", "New Zealand": "🇳🇿", "Haiti": "🇭🇹", "Curaçao": "🇨🇼",
-};
 
 function FlagChip({ code }: { code: string }) {
   return (
@@ -188,7 +166,7 @@ export default async function HomePage() {
       .from("prediction_round_scores")
       .select("user_id, total_points")
       .eq("league_id", leagueId)
-      .eq("round_id", "a0000000-0000-0000-0000-000000000001"),
+      .eq("round_id", ROUND_ID),
 
     supabase
       .from("matches")

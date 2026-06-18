@@ -2,21 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-
-const FLAG_EMOJI: Record<string, string> = {
-  "Argentina": "🇦🇷", "France": "🇫🇷", "Spain": "🇪🇸", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-  "Brazil": "🇧🇷", "Portugal": "🇵🇹", "Netherlands": "🇳🇱", "Belgium": "🇧🇪",
-  "Colombia": "🇨🇴", "Uruguay": "🇺🇾", "Croatia": "🇭🇷", "Germany": "🇩🇪",
-  "Morocco": "🇲🇦", "United States": "🇺🇸", "Japan": "🇯🇵", "Mexico": "🇲🇽",
-  "Switzerland": "🇨🇭", "Senegal": "🇸🇳", "Iran": "🇮🇷", "South Korea": "🇰🇷",
-  "Egypt": "🇪🇬", "Australia": "🇦🇺", "Austria": "🇦🇹", "Ecuador": "🇪🇨",
-  "Türkiye": "🇹🇷", "Norway": "🇳🇴", "Sweden": "🇸🇪", "Tunisia": "🇹🇳",
-  "Algeria": "🇩🇿", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "Ivory Coast": "🇨🇮", "Paraguay": "🇵🇾",
-  "Saudi Arabia": "🇸🇦", "Czechia": "🇨🇿", "Ghana": "🇬🇭", "South Africa": "🇿🇦",
-  "Qatar": "🇶🇦", "Congo DR": "🇨🇩", "Panama": "🇵🇦", "Bosnia-Herzegovina": "🇧🇦",
-  "Canada": "🇨🇦", "Uzbekistan": "🇺🇿", "Cape Verde": "🇨🇻", "Iraq": "🇮🇶",
-  "Jordan": "🇯🇴", "New Zealand": "🇳🇿", "Haiti": "🇭🇹", "Curaçao": "🇨🇼",
-};
+import { FLAG_EMOJI } from "@/lib/utils/flags";
+import { toISTWithDay } from "@/lib/utils/date";
 
 interface NationInfo {
   name: string;
@@ -63,19 +50,6 @@ interface Props {
   secondaryNation?: NationBasic;
 }
 
-function toIST(utcDate: string): string {
-  const d = new Date(utcDate);
-  const istMs = d.getTime() + 5.5 * 60 * 60 * 1000;
-  const ist = new Date(istMs);
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const day = days[ist.getUTCDay()];
-  const date = ist.getUTCDate();
-  const month = months[ist.getUTCMonth()];
-  const hh = ist.getUTCHours().toString().padStart(2, "0");
-  const mm = ist.getUTCMinutes().toString().padStart(2, "0");
-  return `${day} ${date} ${month} · ${hh}:${mm} IST`;
-}
 
 function PointsBadge({ points }: { points: number | null }) {
   if (points === null) {
@@ -375,7 +349,7 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
                       color: "var(--n6)",
                     }}
                   >
-                    {toIST(p.match.kickoff_time)}
+                    {toISTWithDay(p.match.kickoff_time)}
                   </span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>

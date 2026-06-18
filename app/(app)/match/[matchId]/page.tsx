@@ -1,23 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-
-function getOutcome(ph: number, pa: number, ah: number, aa: number): "exact" | "result" | "miss" {
-  if (ph === ah && pa === aa) return "exact";
-  const pred = ph > pa ? "H" : ph < pa ? "A" : "D";
-  const actual = ah > aa ? "H" : ah < aa ? "A" : "D";
-  return pred === actual ? "result" : "miss";
-}
-
-function toIST(utcDate: string): string {
-  const d = new Date(utcDate);
-  const istMs = d.getTime() + 5.5 * 60 * 60 * 1000;
-  const ist = new Date(istMs);
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const hh = ist.getUTCHours().toString().padStart(2, "0");
-  const mm = ist.getUTCMinutes().toString().padStart(2, "0");
-  return `${ist.getUTCDate()} ${months[ist.getUTCMonth()]} · ${hh}:${mm} IST`;
-}
+import { toIST } from "@/lib/utils/date";
+import { getOutcome } from "@/lib/utils/prediction";
 
 export default async function MatchPredictionsPage({ params }: { params: Promise<{ matchId: string }> }) {
   const { matchId } = await params;
