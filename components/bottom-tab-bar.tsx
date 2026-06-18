@@ -21,9 +21,9 @@ const tabs: TabItem[] = [
     icon: (active) => <TargetIcon active={active} />,
   },
   {
-    href: "/nation",
-    label: "Nation",
-    icon: (active) => <GlobeIcon active={active} />,
+    href: "/profile",
+    label: "Profile",
+    icon: (active) => <PersonIcon active={active} />,
   },
   {
     href: "/ranks",
@@ -112,7 +112,7 @@ function TargetIcon({ active }: { active: boolean }) {
   );
 }
 
-function GlobeIcon({ active }: { active: boolean }) {
+function PersonIcon({ active }: { active: boolean }) {
   const color = active ? "var(--g4)" : "var(--n6)";
   return (
     <svg
@@ -122,10 +122,8 @@ function GlobeIcon({ active }: { active: boolean }) {
       fill="none"
       aria-hidden="true"
     >
-      <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.8" />
-      <ellipse cx="12" cy="12" rx="4" ry="9" stroke={color} strokeWidth="1.5" />
-      <line x1="3" y1="9" x2="21" y2="9" stroke={color} strokeWidth="1.5" />
-      <line x1="3" y1="15" x2="21" y2="15" stroke={color} strokeWidth="1.5" />
+      <circle cx="12" cy="8" r="4" stroke={color} strokeWidth="1.8" />
+      <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }

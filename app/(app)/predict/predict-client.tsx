@@ -275,9 +275,15 @@ export default function PredictClient({ matches, existingPredictions, leagueId, 
                     <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
                       {toISTTime(match.kickoff_time)}
                     </span>
-                    <div style={{ padding: "3px 9px", borderRadius: 20, background: chip.bg, color: chip.color, fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11 }}>
-                      {chip.label}
-                    </div>
+                    {locked ? (
+                      <div style={{ padding: "3px 9px", borderRadius: 20, background: "rgba(226,59,72,0.15)", color: "var(--r3)", fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11 }}>
+                        🔒 Locked
+                      </div>
+                    ) : (
+                      <div style={{ padding: "3px 9px", borderRadius: 20, background: chip.bg, color: chip.color, fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11 }}>
+                        {chip.label}
+                      </div>
+                    )}
                   </div>
 
                   {/* Teams */}
@@ -291,7 +297,9 @@ export default function PredictClient({ matches, existingPredictions, leagueId, 
                         )}
                       </div>
                       {locked ? (
-                        <div style={{ padding: "5px 10px", borderRadius: 8, background: "rgba(226,59,72,0.15)", color: "var(--r3)", fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12 }}>Locked</div>
+                        <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-anton), sans-serif", fontSize: 22, color: isSaved ? "#fff" : "var(--n5)" }}>
+                          {isSaved ? (committedScores[match.id]?.[0] ?? "—") : "—"}
+                        </div>
                       ) : (
                         <ScoreStepper value={homeScore} onChange={(v) => setScores((prev) => ({ ...prev, [match.id]: [v, prev[match.id]?.[1] ?? 0] }))} disabled={isSaving} />
                       )}
@@ -308,7 +316,9 @@ export default function PredictClient({ matches, existingPredictions, leagueId, 
                         )}
                       </div>
                       {locked ? (
-                        <div style={{ padding: "5px 10px", borderRadius: 8, background: "rgba(226,59,72,0.15)", color: "var(--r3)", fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12 }}>Locked</div>
+                        <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-anton), sans-serif", fontSize: 22, color: isSaved ? "#fff" : "var(--n5)" }}>
+                          {isSaved ? (committedScores[match.id]?.[1] ?? "—") : "—"}
+                        </div>
                       ) : (
                         <ScoreStepper value={awayScore} onChange={(v) => setScores((prev) => ({ ...prev, [match.id]: [prev[match.id]?.[0] ?? 0, v] }))} disabled={isSaving} />
                       )}

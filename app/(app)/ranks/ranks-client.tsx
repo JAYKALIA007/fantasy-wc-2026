@@ -47,16 +47,6 @@ const roundLabels: Record<string, string> = {
   "a0000000-0000-0000-0000-000000000002": "R16",
 };
 
-function MovementArrow({ movement }: { movement: "up" | "dn" | "eq" }) {
-  if (movement === "up") {
-    return <span style={{ color: "var(--g3)", fontSize: 13 }}>▲</span>;
-  }
-  if (movement === "dn") {
-    return <span style={{ color: "var(--r2)", fontSize: 13 }}>▼</span>;
-  }
-  return <span style={{ color: "var(--n6)", fontSize: 13 }}>—</span>;
-}
-
 function RankList({
   rows,
   currentUserId,
@@ -101,7 +91,6 @@ function RankList({
       {rows.map((row, idx) => {
         const rank = idx + 1;
         const isMe = row.user_id === currentUserId;
-        const movement: "up" | "dn" | "eq" = "eq";
         const flag = FLAG_EMOJI[row.primary_nation_name] ?? "🌐";
 
         return (
@@ -164,9 +153,8 @@ function RankList({
             {/* Nation flag */}
             <span style={{ fontSize: 22, flexShrink: 0 }}>{flag}</span>
 
-            {/* Movement + points */}
+            {/* Points */}
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <MovementArrow movement={movement} />
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                 <span
                   style={{
@@ -434,7 +422,7 @@ export default function RanksClient({
                 marginBottom: 3,
               }}
             >
-              {gapToLeader > 0 ? `${gapToLeader} pts from leader` : "You're leading!"}
+              {gapToLeader > 0 ? `${gapToLeader} pts behind ${rows[0]?.profile_name ?? "leader"}` : "You're leading! 🏆"}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontSize: 24 }}>{myFlag}</span>

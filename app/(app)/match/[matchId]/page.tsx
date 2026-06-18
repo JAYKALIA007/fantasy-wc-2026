@@ -2,6 +2,13 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 
+function getOutcome(ph: number, pa: number, ah: number, aa: number): "exact" | "result" | "miss" {
+  if (ph === ah && pa === aa) return "exact";
+  const pred = ph > pa ? "H" : ph < pa ? "A" : "D";
+  const actual = ah > aa ? "H" : ah < aa ? "A" : "D";
+  return pred === actual ? "result" : "miss";
+}
+
 function toIST(utcDate: string): string {
   const d = new Date(utcDate);
   const istMs = d.getTime() + 5.5 * 60 * 60 * 1000;
@@ -151,15 +158,21 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
           {rows.filter(r => r.pred).length} of {rows.length} members predicted
         </div>
 
-        {rows.map((row) => (
+        {rows.map((row) => {
+          const outcome = isFinished && row.pred && match.home_score != null && match.away_score != null
+            ? getOutcome(row.pred.predicted_home_score, row.pred.predicted_away_score, match.home_score as number, match.away_score as number)
+            : null;
+          const outcomeBg = outcome === "exact" ? "rgba(0,184,92,0.1)" : outcome === "result" ? "rgba(240,192,64,0.1)" : outcome === "miss" ? "rgba(226,59,72,0.07)" : row.isMe ? "rgba(0,184,92,0.07)" : "var(--surf)";
+          const outcomeBorder = outcome === "exact" ? "1px solid rgba(0,184,92,0.25)" : outcome === "result" ? "1px solid rgba(240,192,64,0.25)" : outcome === "miss" ? "1px solid rgba(226,59,72,0.15)" : row.isMe ? "1px solid rgba(0,184,92,0.2)" : "none";
+          return (
           <div
             key={row.userId}
             style={{
-              background: row.isMe ? "rgba(0,184,92,0.07)" : "var(--surf)",
+              background: outcomeBg,
               borderRadius: 12,
               padding: "12px 14px",
               boxShadow: "var(--sh-sm)",
-              border: row.isMe ? "1px solid rgba(0,184,92,0.2)" : "none",
+              border: outcomeBorder,
               display: "flex",
               alignItems: "center",
               gap: 10,
@@ -179,22 +192,21 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
             </div>
 
             {row.pred ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
                 <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 18, color: "var(--n0)", letterSpacing: 1 }}>
                   {row.pred.predicted_home_score} – {row.pred.predicted_away_score}
                 </span>
-                {isFinished && (
-                  <div style={{
-                    padding: "3px 9px",
-                    borderRadius: 20,
-                    background: (row.pred.points ?? 0) >= 3 ? "rgba(0,184,92,0.15)" : (row.pred.points ?? 0) >= 1 ? "rgba(240,192,64,0.15)" : "rgba(226,59,72,0.15)",
-                    color: (row.pred.points ?? 0) >= 3 ? "var(--g3)" : (row.pred.points ?? 0) >= 1 ? "#f0c040" : "var(--r3)",
+                {isFinished && outcome && (
+                  <span style={{
                     fontFamily: "var(--font-saira), sans-serif",
                     fontWeight: 700,
-                    fontSize: 12,
+                    fontSize: 10,
+                    letterSpacing: 0.8,
+                    textTransform: "uppercase",
+                    color: outcome === "exact" ? "var(--g3)" : outcome === "result" ? "#f0c040" : "var(--r3)",
                   }}>
-                    {(row.pred.points ?? 0) > 0 ? `+${row.pred.points}` : "0"}
-                  </div>
+                    {outcome === "exact" ? "⚽ Exact" : outcome === "result" ? "✓ Result" : "✗ Miss"}
+                  </span>
                 )}
               </div>
             ) : (
@@ -203,7 +215,8 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
               </span>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
