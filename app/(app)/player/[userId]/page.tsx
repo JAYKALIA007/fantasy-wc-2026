@@ -53,13 +53,19 @@ export default async function PlayerPredictionsPage({
     : targetMember.secondary_nation) as NationBasic | null;
   const now = new Date().toISOString();
 
-  // Fetch nation bonus total for this member
+  // Fetch nation bonus (total + per-match) for this member
   const { data: nationBonusRows } = await supabase
     .from("nation_bonus_points")
-    .select("points")
+    .select("match_id, points")
     .eq("league_member_id", memberId);
 
   const nationBonus = (nationBonusRows ?? []).reduce((sum, r) => sum + (r.points as number), 0);
+
+  const nationBonusByMatch = new Map<number, number>();
+  for (const row of (nationBonusRows ?? [])) {
+    const mid = row.match_id as number;
+    nationBonusByMatch.set(mid, (nationBonusByMatch.get(mid) ?? 0) + (row.points as number));
+  }
 
   // Fetch all their predictions — filter to kicked-off matches in JS
   // (PostgREST does not support filtering a parent table by an embedded relation column)
@@ -92,12 +98,14 @@ export default async function PlayerPredictionsPage({
       const m = matchRaw as MatchRaw;
       // Only show predictions for matches that have already kicked off
       if (new Date(m.kickoff_time) > new Date(now)) return null;
+      const matchId = p.match_id as number;
       return {
         id: p.id as string,
-        match_id: p.match_id as number,
+        match_id: matchId,
         predicted_home_score: p.predicted_home_score as number,
         predicted_away_score: p.predicted_away_score as number,
         points: p.points as number | null,
+        nation_bonus: nationBonusByMatch.get(matchId) ?? null,
         match: {
           kickoff_time: m.kickoff_time,
           home_score: m.home_score,

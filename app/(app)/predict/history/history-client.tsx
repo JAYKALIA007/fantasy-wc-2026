@@ -24,6 +24,7 @@ export interface PredictionRecord {
   predicted_home_score: number;
   predicted_away_score: number;
   points: number | null;
+  nation_bonus: number | null;
   match: MatchInfo;
 }
 
@@ -306,8 +307,12 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
         {predictions.slice(0, visibleCount).map((p) => {
           const isFinished = p.match.status === "finished";
           return (
-            <div
+            <Link
               key={p.id}
+              href={`/match/${p.match_id}`}
+              style={{ textDecoration: "none", display: "block" }}
+            >
+            <div
               style={{
                 background: "var(--surf)",
                 borderRadius: 14,
@@ -354,7 +359,14 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
                   </span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
-                  <PointsBadge points={isFinished ? (p.points ?? 0) : null} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <PointsBadge points={isFinished ? (p.points ?? 0) : null} />
+                    {isFinished && p.nation_bonus != null && p.nation_bonus > 0 && (
+                      <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--g3)" }}>
+                        +{p.nation_bonus}n
+                      </span>
+                    )}
+                  </div>
                   {isFinished && summaries[p.match_id] && summaries[p.match_id].total > 0 && (
                     <span
                       style={{
@@ -484,6 +496,7 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
                 )}
               </div>
             </div>
+            </Link>
           );
         })}
 

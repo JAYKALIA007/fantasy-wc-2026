@@ -439,6 +439,26 @@ export default async function HomePage() {
             />
             Jay&apos;s League
           </div>
+          <Link
+            href="/help"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 34,
+              height: 34,
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.1)",
+              color: "rgba(255,255,255,0.7)",
+              textDecoration: "none",
+              fontFamily: "var(--font-saira), sans-serif",
+              fontWeight: 700,
+              fontSize: 15,
+            }}
+            aria-label="Help"
+          >
+            ?
+          </Link>
           {isCreator && (
             <Link
               href="/admin"
@@ -673,6 +693,10 @@ export default async function HomePage() {
 
         {/* Live now card */}
         {liveMatch && (
+          <Link
+            href={`/match/${liveMatch.id}`}
+            style={{ textDecoration: "none", display: "block" }}
+          >
           <div
             style={{
               background: "var(--n1)",
@@ -839,6 +863,7 @@ export default async function HomePage() {
               )}
             </div>
           </div>
+          </Link>
         )}
 
         {/* Rank tile */}

@@ -15,7 +15,7 @@ export default async function HistoryPage() {
 
   const { data: membership } = await supabase
     .from("league_members")
-    .select("league_id")
+    .select("id, league_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -24,21 +24,34 @@ export default async function HistoryPage() {
   }
 
   const leagueId = membership.league_id as string;
+  const leagueMemberId = membership.id as string;
 
-  const { data: predsRaw } = await supabase
-    .from("predictions")
-    .select(
-      `id, match_id, predicted_home_score, predicted_away_score, points,
-       match:match_id(kickoff_time, home_score, away_score, status, group_label,
-         home_nation:home_nation_id(name, flag_code),
-         away_nation:away_nation_id(name, flag_code))`
-    )
-    .eq("user_id", user.id)
-    .eq("league_id", leagueId);
+  const [predsResult, nationBonusResult] = await Promise.all([
+    supabase
+      .from("predictions")
+      .select(
+        `id, match_id, predicted_home_score, predicted_away_score, points,
+         match:match_id(kickoff_time, home_score, away_score, status, group_label,
+           home_nation:home_nation_id(name, flag_code),
+           away_nation:away_nation_id(name, flag_code))`
+      )
+      .eq("user_id", user.id)
+      .eq("league_id", leagueId),
+    supabase
+      .from("nation_bonus_points")
+      .select("match_id, points")
+      .eq("league_member_id", leagueMemberId),
+  ]);
+
+  const nationBonusByMatch = new Map<number, number>();
+  for (const row of (nationBonusResult.data ?? [])) {
+    const matchId = row.match_id as number;
+    nationBonusByMatch.set(matchId, (nationBonusByMatch.get(matchId) ?? 0) + (row.points as number));
+  }
 
   type NationInfo = { name: string; flag_code: string };
 
-  const predictions: PredictionRecord[] = (predsRaw ?? []).map((p) => {
+  const predictions: PredictionRecord[] = (predsResult.data ?? []).map((p) => {
     const matchRaw = Array.isArray(p.match) ? p.match[0] : p.match;
     const m = matchRaw as {
       kickoff_time: string;
@@ -49,12 +62,14 @@ export default async function HistoryPage() {
       home_nation: NationInfo | NationInfo[];
       away_nation: NationInfo | NationInfo[];
     };
+    const matchId = p.match_id as number;
     return {
       id: p.id as string,
-      match_id: p.match_id as number,
+      match_id: matchId,
       predicted_home_score: p.predicted_home_score as number,
       predicted_away_score: p.predicted_away_score as number,
       points: p.points as number | null,
+      nation_bonus: nationBonusByMatch.get(matchId) ?? null,
       match: {
         kickoff_time: m.kickoff_time,
         home_score: m.home_score,
