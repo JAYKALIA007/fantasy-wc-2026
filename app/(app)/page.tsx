@@ -278,7 +278,7 @@ export default async function HomePage() {
   const memberIds = Array.from(memberIdToUserId.keys());
 
   // Fetch sequential data in parallel
-  const [predictedCountOrNull, recentPredictionsResult, nationBonusesResult] =
+  const [predictedCountOrNull, recentPredictionsResult, nationBonusesResult, nextMatchConsensusResult] =
     await Promise.all([
       openMatches.length > 0
         ? supabase
@@ -304,10 +304,28 @@ export default async function HomePage() {
             .select("league_member_id, points")
             .in("league_member_id", memberIds)
         : Promise.resolve({ data: [] as Array<{ league_member_id: string; points: number }> }),
+
+      nextMatch
+        ? supabase
+            .from("predictions")
+            .select("predicted_home_score, predicted_away_score")
+            .eq("league_id", leagueId)
+            .eq("match_id", nextMatch.id)
+        : Promise.resolve({ data: [] as Array<{ predicted_home_score: number; predicted_away_score: number }> }),
     ]);
 
   const predictedCount = predictedCountOrNull?.count ?? 0;
   const unpredictedCount = openMatches.length - predictedCount;
+
+  // Consensus for next match
+  const totalMembers = allMembersRaw.length;
+  let consensusHome = 0, consensusDraw = 0, consensusAway = 0;
+  for (const p of (nextMatchConsensusResult.data ?? []) as Array<{ predicted_home_score: number; predicted_away_score: number }>) {
+    if (p.predicted_home_score > p.predicted_away_score) consensusHome++;
+    else if (p.predicted_home_score === p.predicted_away_score) consensusDraw++;
+    else consensusAway++;
+  }
+  const consensusTotal = consensusHome + consensusDraw + consensusAway;
 
   type MyPrediction = { match_id: number; predicted_home_score: number; predicted_away_score: number; points: number | null };
   const myRecentPredictions: MyPrediction[] = (recentPredictionsResult.data ?? []) as MyPrediction[];
@@ -644,43 +662,50 @@ export default async function HomePage() {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 8 }}>
-              <Link
-                href="/predict"
-                style={{
-                  flex: 1,
-                  padding: "12px 0",
-                  borderRadius: 12,
-                  background: "var(--g3)",
-                  color: "#fff",
-                  fontFamily: "var(--font-saira), sans-serif",
-                  fontWeight: 700,
-                  fontSize: 14,
-                  textDecoration: "none",
-                  textAlign: "center",
-                }}
-              >
-                Predict score
-              </Link>
-              <Link
-                href="/squad"
-                style={{
-                  flex: 1,
-                  padding: "12px 0",
-                  borderRadius: 12,
-                  border: "1.5px solid rgba(255,255,255,0.2)",
-                  background: "transparent",
-                  color: "rgba(255,255,255,0.8)",
-                  fontFamily: "var(--font-saira), sans-serif",
-                  fontWeight: 700,
-                  fontSize: 14,
-                  textDecoration: "none",
-                  textAlign: "center",
-                }}
-              >
-                My squad
-              </Link>
-            </div>
+            {/* Consensus bar */}
+            {consensusTotal > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", height: 6, borderRadius: 4, overflow: "hidden", gap: 1 }}>
+                  {consensusHome > 0 && (
+                    <div style={{ flex: consensusHome, background: "var(--g3)", borderRadius: "4px 0 0 4px" }} />
+                  )}
+                  {consensusDraw > 0 && (
+                    <div style={{ flex: consensusDraw, background: "rgba(255,255,255,0.25)" }} />
+                  )}
+                  {consensusAway > 0 && (
+                    <div style={{ flex: consensusAway, background: "#f0a030", borderRadius: "0 4px 4px 0" }} />
+                  )}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 10, color: "var(--g4)" }}>● Home</span>
+                    <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 10, color: "rgba(255,255,255,0.4)" }}>● Draw</span>
+                    <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 10, color: "#f0a030" }}>● Away</span>
+                  </div>
+                  <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
+                    {consensusTotal} of {totalMembers} predicted
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <Link
+              href="/predict"
+              style={{
+                display: "block",
+                padding: "12px 0",
+                borderRadius: 12,
+                background: "var(--g3)",
+                color: "#fff",
+                fontFamily: "var(--font-saira), sans-serif",
+                fontWeight: 700,
+                fontSize: 14,
+                textDecoration: "none",
+                textAlign: "center",
+              }}
+            >
+              Predict score
+            </Link>
           </div>
         )}
 
@@ -1174,9 +1199,12 @@ export default async function HomePage() {
               const myPred = myRecentPredictions.find((p) => p.match_id === m.id);
               const pts = myPred?.points ?? null;
               return (
-                <div
+                <Link
                   key={m.id}
+                  href={`/match/${m.id}`}
                   style={{
+                    display: "block",
+                    textDecoration: "none",
                     padding: "10px 0",
                     borderBottom: idx < recentMatches.length - 1 ? "1px solid var(--n9)" : "none",
                   }}
@@ -1255,7 +1283,7 @@ export default async function HomePage() {
                   >
                     {m.group_label ? `Group ${m.group_label} · ` : ""}{toIST(m.kickoff_time)}
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>

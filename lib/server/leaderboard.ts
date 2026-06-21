@@ -8,6 +8,7 @@ export interface LeaderboardRow {
   nation_bonus: number;
   primary_nation_id: number | null;
   joined_at: string;
+  finished_prediction_count: number;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,7 +42,7 @@ export async function computeLeaderboard(
 
   const memberIds = Array.from(memberIdToUserId.keys());
 
-  const [scoresResult, bonusResult] = await Promise.all([
+  const [scoresResult, bonusResult, finishedPredsResult] = await Promise.all([
     supabase
       .from("prediction_round_scores")
       .select("user_id, total_points")
@@ -50,12 +51,22 @@ export async function computeLeaderboard(
     memberIds.length > 0
       ? supabase.from("nation_bonus_points").select("league_member_id, points").in("league_member_id", memberIds)
       : Promise.resolve({ data: [] as { league_member_id: string; points: number }[] }),
+    supabase
+      .from("predictions")
+      .select("user_id, match_id, matches!inner(status)")
+      .eq("league_id", leagueId)
+      .eq("matches.status", "finished"),
   ]);
 
   const nationBonusByUser = new Map<string, number>();
   for (const nb of (bonusResult.data ?? [])) {
     const uid = memberIdToUserId.get(nb.league_member_id as string);
     if (uid) nationBonusByUser.set(uid, (nationBonusByUser.get(uid) ?? 0) + (nb.points as number));
+  }
+
+  const finishedPredCountByUser = new Map<string, number>();
+  for (const p of (finishedPredsResult.data ?? []) as { user_id: string }[]) {
+    finishedPredCountByUser.set(p.user_id, (finishedPredCountByUser.get(p.user_id) ?? 0) + 1);
   }
 
   const rows: LeaderboardRow[] = [];
@@ -76,6 +87,7 @@ export async function computeLeaderboard(
       nation_bonus: nationBonus,
       primary_nation_id: member.primary_nation_id,
       joined_at: member.joined_at,
+      finished_prediction_count: finishedPredCountByUser.get(userId) ?? 0,
     });
   }
 
@@ -91,12 +103,14 @@ export async function computeLeaderboard(
         nation_bonus: nationBonus,
         primary_nation_id: member.primary_nation_id,
         joined_at: member.joined_at,
+        finished_prediction_count: finishedPredCountByUser.get(userId) ?? 0,
       });
     }
   }
 
   rows.sort((a, b) => {
     if (b.total_points !== a.total_points) return b.total_points - a.total_points;
+    if (a.finished_prediction_count !== b.finished_prediction_count) return a.finished_prediction_count - b.finished_prediction_count;
     return new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime();
   });
 
