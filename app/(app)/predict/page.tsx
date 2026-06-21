@@ -112,10 +112,11 @@ export default async function PredictPage() {
 
   const roundLabels: Record<string, string> = {
     group_stage: "Group Stage",
-    r32: "Round of 32",
+    ro32: "Round of 32",
     r16: "Round of 16",
     qf: "Quarter Finals",
     sf: "Semi Finals",
+    bronze: "Bronze Final",
     final: "Final",
   };
 

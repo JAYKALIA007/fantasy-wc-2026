@@ -5,6 +5,7 @@
 //   reach RO16                +10
 //   reach QF                  +20
 //   reach SF                  +30
+//   win the bronze final      +35
 //   reach Final (runner-up)   +40
 //   win the tournament        +50
 //
@@ -18,6 +19,7 @@ export const MILESTONE_BONUS = {
   r16: 10,
   qf: 20,
   sf: 30,
+  bronze: 35,
   final: 40,
   win: 50,
 } as const;

@@ -75,8 +75,10 @@ export default async function RulesPage() {
         <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>Round progression bonuses</p>
         <Row label="Reach Round of 32" value="+5 pts" />
         <Row label="Reach Round of 16" value="+10 pts" />
-        <Row label="Reach Quarter-finals" value="+15 pts" />
-        <Row label="Reach Semi-finals" value="+20 pts" />
+        <Row label="Reach Quarter-finals" value="+20 pts" />
+        <Row label="Reach Semi-finals" value="+30 pts" />
+        <Row label="Win Bronze Final 🥉" value="+35 pts" />
+        <Row label="Reach the Final (runner-up)" value="+40 pts" />
         <Row label="Win the tournament 🏆" value="+50 pts" />
         <div style={{ padding: "10px 0" }}>
           <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>

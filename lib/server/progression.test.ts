@@ -30,6 +30,7 @@ describe("computeProgressionBonus", () => {
       ["r16", 10],
       ["qf", 20],
       ["sf", 30],
+      ["bronze", 35],
       ["final", 40],
       ["win", 50],
     ];
