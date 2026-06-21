@@ -1203,57 +1203,49 @@ export default async function HomePage() {
                   key={m.id}
                   href={`/match/${m.id}`}
                   style={{
-                    display: "block",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
                     textDecoration: "none",
                     padding: "10px 0",
                     borderBottom: idx < recentMatches.length - 1 ? "1px solid var(--n9)" : "none",
                   }}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      marginBottom: 3,
-                    }}
-                  >
+                  <div style={{ flex: 1 }}>
                     <span
                       style={{
                         fontFamily: "var(--font-saira), sans-serif",
                         fontWeight: 700,
                         fontSize: 15,
                         color: "var(--n0)",
+                        display: "block",
+                        marginBottom: 3,
                       }}
                     >
                       {m.home_nation.flag_code} {m.home_score} – {m.away_score} {m.away_nation.flag_code}
                     </span>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-inter), sans-serif",
+                        fontSize: 11,
+                        color: "var(--n6)",
+                      }}
+                    >
+                      {m.group_label ? `Group ${m.group_label} · ` : ""}{toIST(m.kickoff_time)}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     {myPred ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span
-                          style={{
-                            fontFamily: "var(--font-inter), sans-serif",
-                            fontSize: 12,
-                            color: "var(--n5)",
-                          }}
-                        >
+                      <>
+                        <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)" }}>
                           {myPred.predicted_home_score}–{myPred.predicted_away_score}
                         </span>
                         <span
                           style={{
                             padding: "2px 8px",
                             borderRadius: 20,
-                            background:
-                              pts === 3
-                                ? "rgba(34,197,94,0.15)"
-                                : pts === 1
-                                ? "rgba(245,181,10,0.15)"
-                                : "rgba(226,59,72,0.15)",
-                            color:
-                              pts === 3
-                                ? "var(--g3)"
-                                : pts === 1
-                                ? "var(--gold)"
-                                : "var(--r3)",
+                            background: pts === 3 ? "rgba(34,197,94,0.15)" : pts === 1 ? "rgba(245,181,10,0.15)" : "rgba(226,59,72,0.15)",
+                            color: pts === 3 ? "var(--g3)" : pts === 1 ? "var(--gold)" : "var(--r3)",
                             fontFamily: "var(--font-saira), sans-serif",
                             fontWeight: 700,
                             fontSize: 11,
@@ -1261,27 +1253,15 @@ export default async function HomePage() {
                         >
                           {pts === 3 ? "+3 ✓" : pts === 1 ? "+1" : "0"}
                         </span>
-                      </div>
+                      </>
                     ) : (
-                      <span
-                        style={{
-                          fontFamily: "var(--font-inter), sans-serif",
-                          fontSize: 11,
-                          color: "var(--n6)",
-                        }}
-                      >
+                      <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n6)" }}>
                         No pick
                       </span>
                     )}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: "var(--font-inter), sans-serif",
-                      fontSize: 11,
-                      color: "var(--n6)",
-                    }}
-                  >
-                    {m.group_label ? `Group ${m.group_label} · ` : ""}{toIST(m.kickoff_time)}
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--n6)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 4l4 4-4 4" />
+                    </svg>
                   </div>
                 </Link>
               );
