@@ -7,6 +7,8 @@ export interface LeaderboardRow {
   total_points: number;
   prediction_points: number;
   nation_bonus: number;
+  progression_bonus: number;
+  swap_penalty: number;
   primary_nation_id: number | null;
   joined_at: string;
   finished_prediction_count: number;
@@ -31,7 +33,8 @@ export async function computeLeaderboard(
     adminUserId
   );
 
-  const [scoresResult, bonusResult, finishedPredsResult] = await Promise.all([
+  const emptyRows = Promise.resolve({ data: [] as { league_member_id: string; points: number }[] });
+  const [scoresResult, bonusResult, finishedPredsResult, progressionResult, penaltyResult] = await Promise.all([
     supabase
       .from("prediction_round_scores")
       .select("user_id, total_points")
@@ -39,19 +42,36 @@ export async function computeLeaderboard(
       .eq("round_id", roundId),
     memberIds.length > 0
       ? supabase.from("nation_bonus_points").select("league_member_id, points").in("league_member_id", memberIds)
-      : Promise.resolve({ data: [] as { league_member_id: string; points: number }[] }),
+      : emptyRows,
     supabase
       .from("predictions")
       .select("user_id, match_id, matches!inner(status)")
       .eq("league_id", leagueId)
       .eq("matches.status", "finished"),
+    memberIds.length > 0
+      ? supabase.from("progression_bonus_points").select("league_member_id, points").in("league_member_id", memberIds)
+      : emptyRows,
+    memberIds.length > 0
+      ? supabase.from("swap_penalties").select("league_member_id, amount").in("league_member_id", memberIds)
+      : Promise.resolve({ data: [] as { league_member_id: string; amount: number }[] }),
   ]);
 
-  const nationBonusByUser = new Map<string, number>();
-  for (const nb of (bonusResult.data ?? [])) {
-    const uid = memberIdToUserId.get(nb.league_member_id as string);
-    if (uid) nationBonusByUser.set(uid, (nationBonusByUser.get(uid) ?? 0) + (nb.points as number));
-  }
+  // Sum a league_member_id-keyed points table into a user_id-keyed map.
+  const sumByUser = (
+    data: { league_member_id: string; points?: number; amount?: number }[] | null,
+    field: "points" | "amount"
+  ) => {
+    const out = new Map<string, number>();
+    for (const r of data ?? []) {
+      const uid = memberIdToUserId.get(r.league_member_id as string);
+      if (uid) out.set(uid, (out.get(uid) ?? 0) + ((r[field] as number) ?? 0));
+    }
+    return out;
+  };
+
+  const nationBonusByUser = sumByUser(bonusResult.data, "points");
+  const progressionByUser = sumByUser(progressionResult.data, "points");
+  const penaltyByUser = sumByUser(penaltyResult.data, "amount");
 
   const finishedPredCountByUser = new Map<string, number>();
   for (const p of (finishedPredsResult.data ?? []) as { user_id: string }[]) {
@@ -68,12 +88,16 @@ export async function computeLeaderboard(
     seenUserIds.add(userId);
     const predictionPoints = s.total_points as number;
     const nationBonus = nationBonusByUser.get(userId) ?? 0;
+    const progressionBonus = progressionByUser.get(userId) ?? 0;
+    const swapPenalty = penaltyByUser.get(userId) ?? 0;
     rows.push({
       user_id: userId,
       profile_name: member.profile_name,
-      total_points: predictionPoints + nationBonus,
+      total_points: predictionPoints + nationBonus + progressionBonus - swapPenalty,
       prediction_points: predictionPoints,
       nation_bonus: nationBonus,
+      progression_bonus: progressionBonus,
+      swap_penalty: swapPenalty,
       primary_nation_id: member.primary_nation_id ?? null,
       joined_at: member.joined_at,
       finished_prediction_count: finishedPredCountByUser.get(userId) ?? 0,
@@ -84,12 +108,16 @@ export async function computeLeaderboard(
   for (const [userId, member] of memberInfoByUserId.entries()) {
     if (!seenUserIds.has(userId)) {
       const nationBonus = nationBonusByUser.get(userId) ?? 0;
+      const progressionBonus = progressionByUser.get(userId) ?? 0;
+      const swapPenalty = penaltyByUser.get(userId) ?? 0;
       rows.push({
         user_id: userId,
         profile_name: member.profile_name,
-        total_points: nationBonus,
+        total_points: nationBonus + progressionBonus - swapPenalty,
         prediction_points: 0,
         nation_bonus: nationBonus,
+        progression_bonus: progressionBonus,
+        swap_penalty: swapPenalty,
         primary_nation_id: member.primary_nation_id ?? null,
         joined_at: member.joined_at,
         finished_prediction_count: finishedPredCountByUser.get(userId) ?? 0,
