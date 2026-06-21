@@ -68,7 +68,7 @@ function Hero() {
           margin: 0,
         }}
       >
-        Fantasy League
+        Predictions
       </p>
     </div>
   );

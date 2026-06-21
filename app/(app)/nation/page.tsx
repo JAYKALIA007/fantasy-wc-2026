@@ -240,41 +240,10 @@ export default async function NationPage() {
             Why it&apos;s different
           </h2>
           <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n6)", margin: 0, lineHeight: 1.6 }}>
-            Unlike traditional fantasy leagues, Pick Your Nation rewards loyalty. Backing an
-            underdog that goes on a run can massively change the leaderboard. Your prediction
-            skill + your nation allegiance = your total score.
+            Pick Your Nation rewards loyalty. Backing an underdog that goes on a run can
+            massively change the leaderboard. Your prediction skill + your nation allegiance
+            = your total score.
           </p>
-        </div>
-
-        {/* Fantasy league teaser */}
-        <div
-          style={{
-            backgroundColor: "var(--n1)",
-            borderRadius: 16,
-            padding: "16px",
-            boxShadow: "var(--sh-sm)",
-            display: "flex",
-            alignItems: "center",
-            gap: 14,
-            opacity: 0.7,
-          }}
-        >
-          <div
-            style={{
-              width: 40, height: 40, borderRadius: 10, backgroundColor: "var(--n2)",
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0,
-            }}
-          >
-            🔒
-          </div>
-          <div>
-            <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "var(--n9)", marginBottom: 3 }}>
-              Fantasy League
-            </div>
-            <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", lineHeight: 1.4 }}>
-              Coming when we can auto-sync match data
-            </div>
-          </div>
         </div>
       </div>
     </div>

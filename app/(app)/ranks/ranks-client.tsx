@@ -337,43 +337,6 @@ export default function RanksClient({
           n = nation bonus pts
         </div>
 
-        {/* Fantasy coming soon */}
-        <div
-          style={{
-            background: "var(--surf)",
-            borderRadius: 14,
-            padding: "16px 14px",
-            boxShadow: "var(--sh-sm)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            opacity: 0.6,
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontFamily: "var(--font-anton), sans-serif",
-                fontSize: 15,
-                color: "var(--n0)",
-                letterSpacing: 0.3,
-              }}
-            >
-              Fantasy League
-            </div>
-            <div
-              style={{
-                fontFamily: "var(--font-saira), sans-serif",
-                fontSize: 12,
-                color: "var(--n5)",
-                marginTop: 2,
-              }}
-            >
-              Coming soon
-            </div>
-          </div>
-          <span style={{ fontSize: 22 }}>🔒</span>
-        </div>
       </div>
 
       {/* Bottom tray */}
