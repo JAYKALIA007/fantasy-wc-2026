@@ -60,7 +60,7 @@ export default async function RulesPage() {
       {/* Nation picking */}
       <Section title="🏳️  Nation picks">
         <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 10px", lineHeight: 1.5 }}>
-          You picked two nations during sign-up — these are locked and cannot be changed. Every time they play, you earn bonus points on top of your prediction score.
+          You picked two nations during sign-up — locked for the group stage. Every time they play, you earn bonus points on top of your prediction score.
         </p>
         <Row label="Primary nation wins" value="+3 pts" sub="Your #1 pick — any ranked nation" />
         <Row label="Primary draws" value="+1 pt" sub="Group stage draws count" />
@@ -87,10 +87,43 @@ export default async function RulesPage() {
         </div>
       </Section>
 
+      {/* Knockout rounds */}
+      <Section title="🔁  Knockout rounds">
+        <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 14px", lineHeight: 1.5 }}>
+          Once the group stage ends, the board reopens at the start of each knockout round. You can keep your teams or swap — but swapping costs points.
+        </p>
+
+        <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>RO32 reset — picking from 32 survivors</p>
+        <Row label="Primary" value="Top 10 ranked" sub="Pick from the top 10 FIFA-ranked survivors" />
+        <Row label="Secondary / wildcard" value="Other 22" sub="Pick from the remaining 22 teams" />
+        <div style={{ padding: "8px 0 2px" }}>
+          <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>
+            No exclusivity — multiple players can hold the same team.
+          </p>
+        </div>
+
+        <div style={{ height: 12 }} />
+        <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>Cost to swap</p>
+        <Row label="RO32 reset — Primary" value="−5 pts" />
+        <Row label="RO32 reset — Secondary" value="−3 pts" />
+        <Row label="RO16" value="−5 pts" />
+        <Row label="Quarter-finals" value="−8 pts" />
+        <Row label="Semi-finals" value="−10 pts" />
+        <Row label="Final" value="−12 pts" sub="Keeping your team is always free" />
+
+        <div style={{ height: 12 }} />
+        <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>Secondary team</p>
+        <div style={{ padding: "6px 0" }}>
+          <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: 0, lineHeight: 1.6 }}>
+            Your secondary team only runs through the RO32. If it survives to the RO16 you collect a <strong style={{ color: "var(--n0)" }}>+20 farewell bonus</strong> (2× the RO16 milestone), then it dissolves — from RO16 onwards everyone plays with a single team.
+          </p>
+        </div>
+      </Section>
+
       {/* Leaderboard */}
       <Section title="🏅  Leaderboard">
         <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: 0, lineHeight: 1.6 }}>
-          Your total score = <strong style={{ color: "var(--n0)" }}>prediction points</strong> + <strong style={{ color: "var(--n0)" }}>nation bonus points</strong>. Both tabs on the Ranks page show your combined total. The nation bonus column shows how much of it came from your picks.
+          Your total score = <strong style={{ color: "var(--n0)" }}>prediction points</strong> + <strong style={{ color: "var(--n0)" }}>nation bonus</strong> + <strong style={{ color: "var(--n0)" }}>progression bonus</strong> − <strong style={{ color: "var(--n0)" }}>swap penalties</strong>. The Ranks page breaks this down per player.
         </p>
       </Section>
     </div>
