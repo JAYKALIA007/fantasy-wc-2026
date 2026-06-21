@@ -26,9 +26,10 @@ describe("computeLeaderboard", () => {
         { id: "m2", user_id: "u2", profile_name: "Bob", primary_nation_id: 2, joined_at: "2026-06-15T00:00:00Z" },
         { id: "admin", user_id: "uAdmin", profile_name: "Admin", primary_nation_id: null, joined_at: "2026-06-13T00:00:00Z" },
       ],
-      prediction_round_scores: [
-        { user_id: "u1", total_points: 10 },
-        { user_id: "u2", total_points: 5 },
+      predictions: [
+        { user_id: "u1", points: 10 },
+        { user_id: "u2", points: 5 },
+        { user_id: "u1" },
       ],
       nation_bonus_points: [{ league_member_id: "m1", points: 3 }],
       progression_bonus_points: [
@@ -36,7 +37,6 @@ describe("computeLeaderboard", () => {
         { league_member_id: "m2", points: 20 },
       ],
       swap_penalties: [{ league_member_id: "m1", amount: 5 }],
-      predictions: [{ user_id: "u1" }, { user_id: "u1" }, { user_id: "u2" }],
     });
 
     const rows = await computeLeaderboard(supabase, "league-1", "uAdmin", "round-1");
@@ -55,5 +55,31 @@ describe("computeLeaderboard", () => {
     // u2 (25) ranks above u1 (18)
     expect(rows[0].user_id).toBe("u2");
     expect(rows[1].user_id).toBe("u1");
+    expect(u1.finished_prediction_count).toBe(2);
+    expect(u2.finished_prediction_count).toBe(1);
+  });
+
+  it("breaks ties on points by fewer finished predictions, then join date", async () => {
+    const supabase = mockSupabase({
+      league_members: [
+        { id: "m1", user_id: "u1", profile_name: "Alice", primary_nation_id: 1, joined_at: "2026-06-14T00:00:00Z" },
+        { id: "m2", user_id: "u2", profile_name: "Bob", primary_nation_id: 2, joined_at: "2026-06-15T00:00:00Z" },
+      ],
+      predictions: [
+        { user_id: "u1", points: 3 },
+        { user_id: "u1", points: 3 },
+        { user_id: "u2", points: 6 },
+      ],
+      nation_bonus_points: [],
+      progression_bonus_points: [],
+      swap_penalties: [],
+    });
+
+    const rows = await computeLeaderboard(supabase, "league-1", null, "round-1");
+
+    expect(rows[0].user_id).toBe("u2");
+    expect(rows[0].total_points).toBe(6);
+    expect(rows[1].user_id).toBe("u1");
+    expect(rows[1].total_points).toBe(6);
   });
 });

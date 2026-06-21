@@ -42,9 +42,7 @@ function getCountdownChip(match: Match): { label: string; color: string; bg: str
   const isLate = match.allow_late_predictions && minsUntilKickoff < 0;
 
   if (isLate) {
-    const deadlineMs = match.prediction_deadline ? new Date(match.prediction_deadline).getTime() : null;
-    const minsLeft = deadlineMs ? Math.max(0, Math.ceil((deadlineMs - now) / 60000)) : 0;
-    return { label: `⚡ ${minsLeft}m left`, color: "var(--gold)", bg: "rgba(245,181,10,0.18)" };
+    return { label: "⚡ Window open", color: "var(--gold)", bg: "rgba(245,181,10,0.18)" };
   }
   if (minsUntilKickoff <= 30) {
     return { label: "Closes soon", color: "var(--r3)", bg: "rgba(226,59,72,0.18)" };

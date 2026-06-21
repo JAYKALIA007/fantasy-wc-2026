@@ -34,20 +34,20 @@ export async function computeLeaderboard(
   );
 
   const emptyRows = Promise.resolve({ data: [] as { league_member_id: string; points: number }[] });
-  const [scoresResult, bonusResult, finishedPredsResult, progressionResult, penaltyResult] = await Promise.all([
-    supabase
-      .from("prediction_round_scores")
-      .select("user_id, total_points")
-      .eq("league_id", leagueId)
-      .eq("round_id", roundId),
-    memberIds.length > 0
-      ? supabase.from("nation_bonus_points").select("league_member_id, points").in("league_member_id", memberIds)
-      : emptyRows,
+  const [finishedPredsResult, bonusResult, progressionResult, penaltyResult] = await Promise.all([
     supabase
       .from("predictions")
-      .select("user_id, match_id, matches!inner(status)")
+      .select("user_id, points, matches!inner(status, round_id)")
       .eq("league_id", leagueId)
-      .eq("matches.status", "finished"),
+      .eq("matches.status", "finished")
+      .eq("matches.round_id", roundId),
+    memberIds.length > 0
+      ? supabase
+          .from("nation_bonus_points")
+          .select("league_member_id, points, matches!inner(status)")
+          .in("league_member_id", memberIds)
+          .eq("matches.status", "finished")
+      : emptyRows,
     memberIds.length > 0
       ? supabase.from("progression_bonus_points").select("league_member_id, points").in("league_member_id", memberIds)
       : emptyRows,
@@ -73,20 +73,17 @@ export async function computeLeaderboard(
   const progressionByUser = sumByUser(progressionResult.data, "points");
   const penaltyByUser = sumByUser(penaltyResult.data, "amount");
 
+  const predictionPointsByUser = new Map<string, number>();
   const finishedPredCountByUser = new Map<string, number>();
-  for (const p of (finishedPredsResult.data ?? []) as { user_id: string }[]) {
-    finishedPredCountByUser.set(p.user_id, (finishedPredCountByUser.get(p.user_id) ?? 0) + 1);
+  for (const p of (finishedPredsResult.data ?? []) as { user_id: string; points: number | null }[]) {
+    const uid = p.user_id;
+    predictionPointsByUser.set(uid, (predictionPointsByUser.get(uid) ?? 0) + (p.points ?? 0));
+    finishedPredCountByUser.set(uid, (finishedPredCountByUser.get(uid) ?? 0) + 1);
   }
 
   const rows: LeaderboardRow[] = [];
-  const seenUserIds = new Set<string>();
-
-  for (const s of (scoresResult.data ?? [])) {
-    const userId = s.user_id as string;
-    const member = memberInfoByUserId.get(userId);
-    if (!member) continue;
-    seenUserIds.add(userId);
-    const predictionPoints = s.total_points as number;
+  for (const [userId, member] of memberInfoByUserId.entries()) {
+    const predictionPoints = predictionPointsByUser.get(userId) ?? 0;
     const nationBonus = nationBonusByUser.get(userId) ?? 0;
     const progressionBonus = progressionByUser.get(userId) ?? 0;
     const swapPenalty = penaltyByUser.get(userId) ?? 0;
@@ -102,27 +99,6 @@ export async function computeLeaderboard(
       joined_at: member.joined_at,
       finished_prediction_count: finishedPredCountByUser.get(userId) ?? 0,
     });
-  }
-
-  // Include members with no prediction scores yet
-  for (const [userId, member] of memberInfoByUserId.entries()) {
-    if (!seenUserIds.has(userId)) {
-      const nationBonus = nationBonusByUser.get(userId) ?? 0;
-      const progressionBonus = progressionByUser.get(userId) ?? 0;
-      const swapPenalty = penaltyByUser.get(userId) ?? 0;
-      rows.push({
-        user_id: userId,
-        profile_name: member.profile_name,
-        total_points: nationBonus + progressionBonus - swapPenalty,
-        prediction_points: 0,
-        nation_bonus: nationBonus,
-        progression_bonus: progressionBonus,
-        swap_penalty: swapPenalty,
-        primary_nation_id: member.primary_nation_id ?? null,
-        joined_at: member.joined_at,
-        finished_prediction_count: finishedPredCountByUser.get(userId) ?? 0,
-      });
-    }
   }
 
   rows.sort((a, b) => {

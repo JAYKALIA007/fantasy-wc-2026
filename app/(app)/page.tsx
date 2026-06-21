@@ -9,7 +9,7 @@ import { FLAG_EMOJI } from "@/lib/utils/flags";
 import { toIST } from "@/lib/utils/date";
 import { ROUND_ID } from "@/lib/constants";
 import type { Nation } from "@/lib/types";
-import { buildMemberMaps, type LeagueMemberRow } from "@/lib/server/members";
+import { computeLeaderboard } from "@/lib/server/leaderboard";
 
 interface Match {
   id: number;
@@ -32,21 +32,12 @@ interface FinishedMatch {
   away_nation: { name: string; flag_code: string };
 }
 
-interface LeaderboardRow {
-  user_id: string;
-  profile_name: string;
-  total_points: number;
-  joined_at: string;
-}
-
-
 function formatCountdown(kickoffUtc: string, deadlineUtc?: string | null): string {
   const now = Date.now();
   const kickoffMs = new Date(kickoffUtc).getTime();
   if (kickoffMs <= now) {
     if (deadlineUtc) {
-      const mins = Math.max(0, Math.ceil((new Date(deadlineUtc).getTime() - now) / 60000));
-      return `⚡ ${mins}m left`;
+      return "⚡ Window open";
     }
     return "In progress";
   }
@@ -89,7 +80,6 @@ export default async function HomePage() {
     openMatchesResult,
     recentMatchesResult,
     allMembersResult,
-    allScoresResult,
     liveMatchResult,
   ] = await Promise.all([
     supabase
@@ -136,12 +126,6 @@ export default async function HomePage() {
       .from("league_members")
       .select("id, user_id, profile_name, joined_at")
       .eq("league_id", leagueId),
-
-    supabase
-      .from("prediction_round_scores")
-      .select("user_id, total_points")
-      .eq("league_id", leagueId)
-      .eq("round_id", ROUND_ID),
 
     supabase
       .from("matches")
@@ -235,17 +219,13 @@ export default async function HomePage() {
       : (m.away_nation as { name: string; flag_code: string }),
   }));
 
-  // Build leaderboard member maps (excluding admin)
-  const { members: allMembersRaw, memberIdToUserId, memberInfoByUserId, memberIds } =
-    buildMemberMaps(
-      (allMembersResult.data ?? []) as LeagueMemberRow[],
-      adminUserId
-    );
+  // Build leaderboard (same logic as /ranks)
+  const leaderboardRows = await computeLeaderboard(supabase, leagueId, adminUserId, ROUND_ID);
 
   const recentMatchIds = recentMatches.map((m) => m.id);
 
   // Fetch sequential data in parallel
-  const [predictedCountOrNull, recentPredictionsResult, nationBonusesResult, nextMatchConsensusResult] =
+  const [predictedCountOrNull, recentPredictionsResult, nextMatchConsensusResult] =
     await Promise.all([
       openMatches.length > 0
         ? supabase
@@ -265,13 +245,6 @@ export default async function HomePage() {
             .in("match_id", recentMatchIds)
         : Promise.resolve({ data: [] as Array<{ match_id: number; predicted_home_score: number; predicted_away_score: number; points: number | null }> }),
 
-      memberIds.length > 0
-        ? supabase
-            .from("nation_bonus_points")
-            .select("league_member_id, points")
-            .in("league_member_id", memberIds)
-        : Promise.resolve({ data: [] as Array<{ league_member_id: string; points: number }> }),
-
       nextMatch
         ? supabase
             .from("predictions")
@@ -285,7 +258,7 @@ export default async function HomePage() {
   const unpredictedCount = openMatches.length - predictedCount;
 
   // Consensus for next match
-  const totalMembers = allMembersRaw.length;
+  const totalMembers = (allMembersResult.data ?? []).length;
   let consensusHome = 0, consensusDraw = 0, consensusAway = 0;
   for (const p of (nextMatchConsensusResult.data ?? []) as Array<{ predicted_home_score: number; predicted_away_score: number }>) {
     if (p.predicted_home_score > p.predicted_away_score) consensusHome++;
@@ -296,41 +269,6 @@ export default async function HomePage() {
 
   type MyPrediction = { match_id: number; predicted_home_score: number; predicted_away_score: number; points: number | null };
   const myRecentPredictions: MyPrediction[] = (recentPredictionsResult.data ?? []) as MyPrediction[];
-
-  // Build nation bonus map
-  const nationBonusByUser = new Map<string, number>();
-  for (const nb of (nationBonusesResult.data ?? []) as Array<{ league_member_id: string; points: number }>) {
-    const uid = memberIdToUserId.get(nb.league_member_id);
-    if (uid) nationBonusByUser.set(uid, (nationBonusByUser.get(uid) ?? 0) + nb.points);
-  }
-
-  // Build sorted leaderboard top 5
-  const allScores = (allScoresResult.data ?? []) as Array<{ user_id: string; total_points: number }>;
-  const leaderboardRows: LeaderboardRow[] = [];
-  for (const s of allScores) {
-    if (!memberInfoByUserId.has(s.user_id)) continue;
-    const member = memberInfoByUserId.get(s.user_id)!;
-    leaderboardRows.push({
-      user_id: s.user_id,
-      profile_name: member.profile_name,
-      total_points: s.total_points + (nationBonusByUser.get(s.user_id) ?? 0),
-      joined_at: member.joined_at,
-    });
-  }
-  for (const [uid, member] of memberInfoByUserId.entries()) {
-    if (!leaderboardRows.find((r) => r.user_id === uid)) {
-      leaderboardRows.push({
-        user_id: uid,
-        profile_name: member.profile_name,
-        total_points: nationBonusByUser.get(uid) ?? 0,
-        joined_at: member.joined_at,
-      });
-    }
-  }
-  leaderboardRows.sort((a, b) => {
-    if (b.total_points !== a.total_points) return b.total_points - a.total_points;
-    return new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime();
-  });
 
   const myLeaderboardIdx = leaderboardRows.findIndex((r) => r.user_id === user.id);
   const predRank = myLeaderboardIdx !== -1 ? myLeaderboardIdx + 1 : null;
@@ -871,7 +809,7 @@ export default async function HomePage() {
               {predRank !== null ? `#${predRank}` : "--"}
             </span>
             <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)" }}>
-              /{allMembersRaw.length} players →
+              /{leaderboardRows.length} players →
             </span>
           </div>
         </Link>

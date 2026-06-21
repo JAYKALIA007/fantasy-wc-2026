@@ -1,19 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { FLAG_EMOJI } from "@/lib/utils/flags";
+import type { LeaderboardApiRow } from "@/app/api/leaderboard/route";
 
-interface RankRow {
-  user_id: string;
-  total_points: number;
-  prediction_points: number;
-  nation_bonus: number;
-  profile_name: string;
-  primary_nation_id: number | null;
-  primary_nation_name: string;
-}
+type RankRow = LeaderboardApiRow;
 
 interface Props {
   initialRows: RankRow[];
@@ -191,12 +184,35 @@ export default function RanksClient({
   leaderPoints,
 }: Props) {
   const [rows, setRows] = useState<RankRow[]>(initialRows);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const supabase = createClient();
 
+  const fetchLeaderboard = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/leaderboard?round_id=${encodeURIComponent(roundId)}`);
+      if (!res.ok) return;
+      const data = (await res.json()) as { rows: RankRow[] };
+      if (data.rows) setRows(data.rows);
+    } catch {
+      // Keep showing last known rows on transient failures.
+    }
+  }, [roundId]);
+
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      void fetchLeaderboard();
+    }, 400);
+  }, [fetchLeaderboard]);
+
   useEffect(() => {
+    const onScoreChange = () => {
+      scheduleRefresh();
+    };
+
     const channel = supabase
-      .channel("prediction_round_scores_changes")
+      .channel("leaderboard_changes")
       .on(
         "postgres_changes",
         {
@@ -205,46 +221,42 @@ export default function RanksClient({
           table: "prediction_round_scores",
           filter: `league_id=eq.${leagueId}`,
         },
-        () => {
-          void fetchLatestScores();
-        }
+        onScoreChange
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "nation_bonus_points",
+        },
+        onScoreChange
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "progression_bonus_points",
+        },
+        onScoreChange
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "swap_penalties",
+        },
+        onScoreChange
       )
       .subscribe();
 
     return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       void supabase.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leagueId, roundId]);
-
-  const fetchLatestScores = async () => {
-    const { data: scores } = await supabase
-      .from("prediction_round_scores")
-      .select("user_id, total_points")
-      .eq("league_id", leagueId)
-      .eq("round_id", roundId)
-      .order("total_points", { ascending: false });
-
-    if (scores) {
-      setRows((prev) => {
-        const updated = prev.map((row) => {
-          const score = (scores as { user_id: string; total_points: number }[]).find(
-            (s) => s.user_id === row.user_id
-          );
-          if (score) {
-            const newPredictionPoints = score.total_points;
-            return {
-              ...row,
-              prediction_points: newPredictionPoints,
-              total_points: newPredictionPoints + row.nation_bonus,
-            };
-          }
-          return row;
-        });
-        return [...updated].sort((a, b) => b.total_points - a.total_points);
-      });
-    }
-  };
+  }, [leagueId, scheduleRefresh]);
 
   const myCurrentRow = rows.find((r) => r.user_id === currentUserId);
   const myCurrentRank = myCurrentRow ? rows.indexOf(myCurrentRow) + 1 : myRank;
