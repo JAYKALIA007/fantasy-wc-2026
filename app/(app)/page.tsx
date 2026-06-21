@@ -57,26 +57,6 @@ function formatCountdown(kickoffUtc: string, deadlineUtc?: string | null): strin
   return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
 }
 
-function FlagChip({ code }: { code: string }) {
-  return (
-    <div
-      style={{
-        padding: "5px 10px",
-        borderRadius: 8,
-        background: "rgba(255,255,255,0.12)",
-        borderLeft: "3px solid var(--g3)",
-        fontFamily: "var(--font-saira), sans-serif",
-        fontWeight: 800,
-        fontSize: 14,
-        color: "#fff",
-        letterSpacing: 1,
-      }}
-    >
-      {code}
-    </div>
-  );
-}
-
 export default async function HomePage() {
   const supabase = await createClient();
 
