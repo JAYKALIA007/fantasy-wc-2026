@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Anton, Saira_Condensed, Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 
@@ -56,6 +57,7 @@ export default function RootLayout({
       <body className="h-full font-[family-name:var(--font-inter)]">
         <ServiceWorkerRegistration />
         {children}
+        <Analytics />
       </body>
     </html>
   );
