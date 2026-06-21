@@ -8,13 +8,8 @@ import { NotificationPrompt } from "@/components/notification-prompt";
 import { FLAG_EMOJI } from "@/lib/utils/flags";
 import { toIST } from "@/lib/utils/date";
 import { ROUND_ID } from "@/lib/constants";
-
-interface Nation {
-  id: number;
-  name: string;
-  flag_code: string;
-  fifa_ranking?: number | null;
-}
+import type { Nation } from "@/lib/types";
+import { buildMemberMaps, type LeagueMemberRow } from "@/lib/server/members";
 
 interface Match {
   id: number;
@@ -261,21 +256,13 @@ export default async function HomePage() {
   }));
 
   // Build leaderboard member maps (excluding admin)
-  const allMembersRaw = (allMembersResult.data ?? []).filter(
-    (m) => m.user_id !== adminUserId
-  );
-  const memberIdToUserId = new Map<string, string>();
-  const memberInfoMap = new Map<string, { profile_name: string; joined_at: string }>();
-  for (const m of allMembersRaw) {
-    memberIdToUserId.set(m.id as string, m.user_id as string);
-    memberInfoMap.set(m.user_id as string, {
-      profile_name: m.profile_name as string,
-      joined_at: m.joined_at as string,
-    });
-  }
+  const { members: allMembersRaw, memberIdToUserId, memberInfoByUserId, memberIds } =
+    buildMemberMaps(
+      (allMembersResult.data ?? []) as LeagueMemberRow[],
+      adminUserId
+    );
 
   const recentMatchIds = recentMatches.map((m) => m.id);
-  const memberIds = Array.from(memberIdToUserId.keys());
 
   // Fetch sequential data in parallel
   const [predictedCountOrNull, recentPredictionsResult, nationBonusesResult, nextMatchConsensusResult] =
@@ -341,8 +328,8 @@ export default async function HomePage() {
   const allScores = (allScoresResult.data ?? []) as Array<{ user_id: string; total_points: number }>;
   const leaderboardRows: LeaderboardRow[] = [];
   for (const s of allScores) {
-    if (!memberInfoMap.has(s.user_id)) continue;
-    const member = memberInfoMap.get(s.user_id)!;
+    if (!memberInfoByUserId.has(s.user_id)) continue;
+    const member = memberInfoByUserId.get(s.user_id)!;
     leaderboardRows.push({
       user_id: s.user_id,
       profile_name: member.profile_name,
@@ -350,7 +337,7 @@ export default async function HomePage() {
       joined_at: member.joined_at,
     });
   }
-  for (const [uid, member] of memberInfoMap.entries()) {
+  for (const [uid, member] of memberInfoByUserId.entries()) {
     if (!leaderboardRows.find((r) => r.user_id === uid)) {
       leaderboardRows.push({
         user_id: uid,

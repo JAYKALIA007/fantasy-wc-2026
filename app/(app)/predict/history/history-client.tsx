@@ -4,11 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { FLAG_EMOJI } from "@/lib/utils/flags";
 import { toISTWithDay } from "@/lib/utils/date";
-
-interface NationInfo {
-  name: string;
-  flag_code: string;
-}
+import type { NationRef } from "@/lib/types";
 
 interface MatchInfo {
   kickoff_time: string;
@@ -16,8 +12,8 @@ interface MatchInfo {
   away_score: number | null;
   status: string;
   group_label: string | null;
-  home_nation: NationInfo;
-  away_nation: NationInfo;
+  home_nation: NationRef;
+  away_nation: NationRef;
 }
 
 export interface PredictionRecord {
@@ -36,18 +32,13 @@ interface MatchSummary {
   exact: number;
 }
 
-interface NationBasic {
-  name: string;
-  flag_code: string;
-}
-
 interface Props {
   predictions: PredictionRecord[];
   profileName?: string;
   backHref?: string;
   nationBonus?: number;
-  primaryNation?: NationBasic;
-  secondaryNation?: NationBasic;
+  primaryNation?: NationRef;
+  secondaryNation?: NationRef;
 }
 
 

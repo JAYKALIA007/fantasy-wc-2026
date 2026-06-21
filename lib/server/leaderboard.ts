@@ -1,4 +1,5 @@
 import { ROUND_ID } from "@/lib/constants";
+import { buildMemberMaps, type LeagueMemberRow } from "@/lib/server/members";
 
 export interface LeaderboardRow {
   user_id: string;
@@ -25,22 +26,10 @@ export async function computeLeaderboard(
     .select("id, user_id, profile_name, primary_nation_id, joined_at")
     .eq("league_id", leagueId);
 
-  const allMembers = (allMembersRaw ?? []).filter(
-    (m: { user_id: string }) => m.user_id !== adminUserId
+  const { memberIdToUserId, memberInfoByUserId, memberIds } = buildMemberMaps(
+    (allMembersRaw ?? []) as LeagueMemberRow[],
+    adminUserId
   );
-
-  const memberIdToUserId = new Map<string, string>();
-  const memberInfoMap = new Map<string, { profile_name: string; primary_nation_id: number | null; joined_at: string }>();
-  for (const m of allMembers) {
-    memberIdToUserId.set(m.id as string, m.user_id as string);
-    memberInfoMap.set(m.user_id as string, {
-      profile_name: m.profile_name as string,
-      primary_nation_id: m.primary_nation_id as number | null,
-      joined_at: m.joined_at as string,
-    });
-  }
-
-  const memberIds = Array.from(memberIdToUserId.keys());
 
   const [scoresResult, bonusResult, finishedPredsResult] = await Promise.all([
     supabase
@@ -74,7 +63,7 @@ export async function computeLeaderboard(
 
   for (const s of (scoresResult.data ?? [])) {
     const userId = s.user_id as string;
-    const member = memberInfoMap.get(userId);
+    const member = memberInfoByUserId.get(userId);
     if (!member) continue;
     seenUserIds.add(userId);
     const predictionPoints = s.total_points as number;
@@ -85,14 +74,14 @@ export async function computeLeaderboard(
       total_points: predictionPoints + nationBonus,
       prediction_points: predictionPoints,
       nation_bonus: nationBonus,
-      primary_nation_id: member.primary_nation_id,
+      primary_nation_id: member.primary_nation_id ?? null,
       joined_at: member.joined_at,
       finished_prediction_count: finishedPredCountByUser.get(userId) ?? 0,
     });
   }
 
   // Include members with no prediction scores yet
-  for (const [userId, member] of memberInfoMap.entries()) {
+  for (const [userId, member] of memberInfoByUserId.entries()) {
     if (!seenUserIds.has(userId)) {
       const nationBonus = nationBonusByUser.get(userId) ?? 0;
       rows.push({
@@ -101,7 +90,7 @@ export async function computeLeaderboard(
         total_points: nationBonus,
         prediction_points: 0,
         nation_bonus: nationBonus,
-        primary_nation_id: member.primary_nation_id,
+        primary_nation_id: member.primary_nation_id ?? null,
         joined_at: member.joined_at,
         finished_prediction_count: finishedPredCountByUser.get(userId) ?? 0,
       });

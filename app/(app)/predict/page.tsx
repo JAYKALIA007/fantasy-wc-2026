@@ -1,13 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import PredictClient from "./predict-client";
-
-interface Nation {
-  id: number;
-  name: string;
-  flag_code: string;
-  fifa_ranking?: number | null;
-}
+import type { Nation } from "@/lib/types";
 
 interface Match {
   id: number;

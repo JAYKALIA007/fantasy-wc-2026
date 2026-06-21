@@ -3,13 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { toISTTime, getISTDateKey, getDayLabel } from "@/lib/utils/date";
-
-interface Nation {
-  id: number;
-  name: string;
-  flag_code: string;
-  fifa_ranking?: number | null;
-}
+import type { Nation } from "@/lib/types";
 
 interface Match {
   id: number;

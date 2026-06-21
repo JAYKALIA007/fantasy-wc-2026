@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FLAG_EMOJI } from "@/lib/utils/flags";
 import { ROUND_ID } from "@/lib/constants";
 import { computeLeaderboard } from "@/lib/server/leaderboard";
+import type { NationRef } from "@/lib/types";
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -24,9 +25,8 @@ export default async function ProfilePage() {
   const leagueId = membership.league_id as string;
   const profileName = membership.profile_name as string;
 
-  type NationBasic = { name: string; flag_code: string };
-  const primaryNation = (Array.isArray(membership.primary_nation) ? membership.primary_nation[0] : membership.primary_nation) as NationBasic | null;
-  const secondaryNation = (Array.isArray(membership.secondary_nation) ? membership.secondary_nation[0] : membership.secondary_nation) as NationBasic | null;
+  const primaryNation = (Array.isArray(membership.primary_nation) ? membership.primary_nation[0] : membership.primary_nation) as NationRef | null;
+  const secondaryNation = (Array.isArray(membership.secondary_nation) ? membership.secondary_nation[0] : membership.secondary_nation) as NationRef | null;
 
   const [leagueResult, predsResult] = await Promise.all([
     supabase.from("leagues").select("creator_id").eq("id", leagueId).maybeSingle(),

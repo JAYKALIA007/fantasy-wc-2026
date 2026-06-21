@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import HistoryClient, { type PredictionRecord } from "@/app/(app)/predict/history/history-client";
+import type { NationRef } from "@/lib/types";
 
 export default async function PlayerPredictionsPage({
   params,
@@ -41,16 +42,14 @@ export default async function PlayerPredictionsPage({
 
   if (!targetMember) notFound();
 
-  type NationBasic = { name: string; flag_code: string };
-
   const profileName = targetMember.profile_name as string;
   const memberId = targetMember.id as string;
   const primaryNation = (Array.isArray(targetMember.primary_nation)
     ? targetMember.primary_nation[0]
-    : targetMember.primary_nation) as NationBasic | null;
+    : targetMember.primary_nation) as NationRef | null;
   const secondaryNation = (Array.isArray(targetMember.secondary_nation)
     ? targetMember.secondary_nation[0]
-    : targetMember.secondary_nation) as NationBasic | null;
+    : targetMember.secondary_nation) as NationRef | null;
   const now = new Date().toISOString();
 
   // Fetch nation bonus (total + per-match) for this member
@@ -80,15 +79,14 @@ export default async function PlayerPredictionsPage({
     .eq("user_id", targetUserId)
     .eq("league_id", leagueId);
 
-  type NationInfo = NationBasic;
   type MatchRaw = {
     kickoff_time: string;
     home_score: number | null;
     away_score: number | null;
     status: string;
     group_label: string | null;
-    home_nation: NationInfo | NationInfo[];
-    away_nation: NationInfo | NationInfo[];
+    home_nation: NationRef | NationRef[];
+    away_nation: NationRef | NationRef[];
   };
 
   const predictions: PredictionRecord[] = (predsRaw ?? [])

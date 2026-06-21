@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { toIST } from "@/lib/utils/date";
 import { getOutcome } from "@/lib/utils/prediction";
+import type { NationRef } from "@/lib/types";
 
 export default async function MatchPredictionsPage({ params }: { params: Promise<{ matchId: string }> }) {
   const { matchId } = await params;
@@ -52,9 +53,8 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
 
   const adminUserId = leagueResult.data?.creator_id as string | null;
 
-  type NationInfo = { name: string; flag_code: string };
-  const homeNation = Array.isArray(match.home_nation) ? match.home_nation[0] : match.home_nation as NationInfo;
-  const awayNation = Array.isArray(match.away_nation) ? match.away_nation[0] : match.away_nation as NationInfo;
+  const homeNation = Array.isArray(match.home_nation) ? match.home_nation[0] : match.home_nation as NationRef;
+  const awayNation = Array.isArray(match.away_nation) ? match.away_nation[0] : match.away_nation as NationRef;
   const isFinished = match.status === "finished";
 
   const memberMap = new Map<string, string>();

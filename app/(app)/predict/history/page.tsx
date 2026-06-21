@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import HistoryClient, { type PredictionRecord } from "./history-client";
+import type { NationRef } from "@/lib/types";
 
 export default async function HistoryPage() {
   const supabase = await createClient();
@@ -49,8 +50,6 @@ export default async function HistoryPage() {
     nationBonusByMatch.set(matchId, (nationBonusByMatch.get(matchId) ?? 0) + (row.points as number));
   }
 
-  type NationInfo = { name: string; flag_code: string };
-
   const predictions: PredictionRecord[] = (predsResult.data ?? []).map((p) => {
     const matchRaw = Array.isArray(p.match) ? p.match[0] : p.match;
     const m = matchRaw as {
@@ -59,8 +58,8 @@ export default async function HistoryPage() {
       away_score: number | null;
       status: string;
       group_label: string | null;
-      home_nation: NationInfo | NationInfo[];
-      away_nation: NationInfo | NationInfo[];
+      home_nation: NationRef | NationRef[];
+      away_nation: NationRef | NationRef[];
     };
     const matchId = p.match_id as number;
     return {
