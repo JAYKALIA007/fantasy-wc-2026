@@ -195,9 +195,11 @@ export default async function NationPage() {
               { num: 3, text: <>Draw: <strong style={{ color: "var(--g3)" }}>+1 pt</strong> primary, <strong style={{ color: "var(--g3)" }}>+2 pts</strong> wildcard</> },
               { num: 4, text: <>If your nation reaches the Round of 32: <strong style={{ color: "var(--g3)" }}>+5 points</strong></> },
               { num: 5, text: <>If your nation reaches the Round of 16: <strong style={{ color: "var(--g3)" }}>+10 points</strong></> },
-              { num: 6, text: <>Quarter-finals: <strong style={{ color: "var(--g3)" }}>+15 points</strong></> },
-              { num: 7, text: <>Semi-finals: <strong style={{ color: "var(--g3)" }}>+20 points</strong></> },
-              { num: 8, text: <><strong style={{ color: "var(--g3)" }}>Winners: +50 points</strong></> },
+              { num: 6, text: <>Quarter-finals: <strong style={{ color: "var(--g3)" }}>+20 points</strong></> },
+              { num: 7, text: <>Semi-finals: <strong style={{ color: "var(--g3)" }}>+30 points</strong></> },
+              { num: 8, text: <>Win Bronze Final: <strong style={{ color: "var(--g3)" }}>+35 points</strong></> },
+              { num: 9, text: <>Reach the Final (runner-up): <strong style={{ color: "var(--g3)" }}>+40 points</strong></> },
+              { num: 10, text: <><strong style={{ color: "var(--g3)" }}>Win the tournament: +50 points</strong></> },
             ].map((rule) => (
               <div key={rule.num} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                 <div

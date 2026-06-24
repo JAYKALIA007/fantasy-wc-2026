@@ -32,6 +32,16 @@ interface FinishedMatch {
   away_nation: { name: string; flag_code: string };
 }
 
+type LiveMatch = {
+  id: number;
+  kickoff_time: string;
+  group_label: string | null;
+  home_score: number | null;
+  away_score: number | null;
+  home_nation: { name: string; flag_code: string };
+  away_nation: { name: string; flag_code: string };
+};
+
 function formatCountdown(kickoffUtc: string, deadlineUtc?: string | null): string {
   const now = Date.now();
   const kickoffMs = new Date(kickoffUtc).getTime();
@@ -76,11 +86,10 @@ export default async function HomePage() {
   // Run all independent queries in parallel
   const [
     leagueDataResult,
-    nextMatchResult,
     openMatchesResult,
     recentMatchesResult,
     allMembersResult,
-    liveMatchResult,
+    liveMatchesResult,
   ] = await Promise.all([
     supabase
       .from("leagues")
@@ -97,19 +106,7 @@ export default async function HomePage() {
       )
       .or(`and(status.eq.scheduled,kickoff_time.gt.${now}),and(allow_late_predictions.eq.true,prediction_deadline.gt.${now},status.neq.finished)`)
       .order("kickoff_time", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
-
-    supabase
-      .from("matches")
-      .select(
-        `id, kickoff_time, group_label, allow_late_predictions, prediction_deadline,
-         home_nation:home_nation_id(id, name, flag_code, fifa_ranking),
-         away_nation:away_nation_id(id, name, flag_code, fifa_ranking)`
-      )
-      .or(`and(status.eq.scheduled,kickoff_time.gt.${now}),and(allow_late_predictions.eq.true,prediction_deadline.gt.${now},status.neq.finished)`)
-      .order("kickoff_time", { ascending: true })
-      .limit(5),
+      .limit(10),
 
     supabase
       .from("matches")
@@ -136,64 +133,30 @@ export default async function HomePage() {
       )
       .eq("status", "scheduled")
       .lt("kickoff_time", now)
-      .order("kickoff_time", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .order("kickoff_time", { ascending: false }),
   ]);
 
   const leagueData = leagueDataResult.data;
   const isCreator = leagueData?.creator_id === user.id;
-
-  // Live match + user's prediction on it
-  const liveMatchRaw = liveMatchResult.data;
-  type LiveMatch = { id: number; kickoff_time: string; group_label: string | null; home_score: number | null; away_score: number | null; home_nation: { name: string; flag_code: string }; away_nation: { name: string; flag_code: string } };
-  const liveMatch: LiveMatch | null = liveMatchRaw
-    ? {
-        id: liveMatchRaw.id as number,
-        kickoff_time: liveMatchRaw.kickoff_time as string,
-        group_label: liveMatchRaw.group_label as string | null,
-        home_score: liveMatchRaw.home_score as number | null,
-        away_score: liveMatchRaw.away_score as number | null,
-        home_nation: Array.isArray(liveMatchRaw.home_nation) ? liveMatchRaw.home_nation[0] : (liveMatchRaw.home_nation as { name: string; flag_code: string }),
-        away_nation: Array.isArray(liveMatchRaw.away_nation) ? liveMatchRaw.away_nation[0] : (liveMatchRaw.away_nation as { name: string; flag_code: string }),
-      }
-    : null;
-
-  const livePredResult = liveMatch
-    ? await supabase
-        .from("predictions")
-        .select("predicted_home_score, predicted_away_score")
-        .eq("user_id", user.id)
-        .eq("league_id", leagueId)
-        .eq("match_id", liveMatch.id)
-        .maybeSingle()
-    : null;
-  const livePred = livePredResult?.data ?? null;
   const adminUserId = leagueData?.creator_id as string | null;
 
-  const nextMatchRaw = nextMatchResult.data;
-  const nextMatch: Match | null = nextMatchRaw
-    ? {
-        id: nextMatchRaw.id as number,
-        kickoff_time: nextMatchRaw.kickoff_time as string,
-        group_label: nextMatchRaw.group_label as string | null,
-        venue_city: nextMatchRaw.venue_city as string | null,
-        allow_late_predictions: (nextMatchRaw.allow_late_predictions as boolean) ?? false,
-        prediction_deadline: (nextMatchRaw.prediction_deadline as string | null) ?? null,
-        home_nation: Array.isArray(nextMatchRaw.home_nation)
-          ? (nextMatchRaw.home_nation[0] as Nation)
-          : (nextMatchRaw.home_nation as Nation),
-        away_nation: Array.isArray(nextMatchRaw.away_nation)
-          ? (nextMatchRaw.away_nation[0] as Nation)
-          : (nextMatchRaw.away_nation as Nation),
-      }
-    : null;
+  // All live matches (status=scheduled but past kickoff — scored by the edge function)
+  const liveMatches: LiveMatch[] = (liveMatchesResult.data ?? []).map((raw) => ({
+    id: raw.id as number,
+    kickoff_time: raw.kickoff_time as string,
+    group_label: raw.group_label as string | null,
+    home_score: raw.home_score as number | null,
+    away_score: raw.away_score as number | null,
+    home_nation: Array.isArray(raw.home_nation) ? raw.home_nation[0] : (raw.home_nation as { name: string; flag_code: string }),
+    away_nation: Array.isArray(raw.away_nation) ? raw.away_nation[0] : (raw.away_nation as { name: string; flag_code: string }),
+  }));
 
   const openMatchesRaw = openMatchesResult.data;
   const openMatches: Match[] = (openMatchesRaw ?? []).map((m) => ({
     id: m.id as number,
     kickoff_time: m.kickoff_time as string,
     group_label: m.group_label as string | null,
+    venue_city: m.venue_city as string | null,
     allow_late_predictions: (m.allow_late_predictions as boolean) ?? false,
     prediction_deadline: (m.prediction_deadline as string | null) ?? null,
     home_nation: Array.isArray(m.home_nation)
@@ -203,6 +166,11 @@ export default async function HomePage() {
       ? (m.away_nation[0] as Nation)
       : (m.away_nation as Nation),
   }));
+
+  // Next batch: all open matches sharing the earliest kickoff time
+  const nextBatch: Match[] = openMatches.length > 0
+    ? openMatches.filter((m) => m.kickoff_time === openMatches[0].kickoff_time)
+    : [];
 
   // Process recent matches
   const recentMatches: FinishedMatch[] = (recentMatchesResult.data ?? []).map((m) => ({
@@ -219,13 +187,16 @@ export default async function HomePage() {
       : (m.away_nation as { name: string; flag_code: string }),
   }));
 
-  // Build leaderboard (same logic as /ranks)
+  // Build leaderboard (same logic as /ranks) — canonical admin-excluded player set
   const leaderboardRows = await computeLeaderboard(supabase, leagueId, adminUserId, ROUND_ID);
+  const competingPlayerCount = leaderboardRows.length;
 
   const recentMatchIds = recentMatches.map((m) => m.id);
+  const nextBatchIds = nextBatch.map((m) => m.id);
+  const liveMatchIds = liveMatches.map((m) => m.id);
 
   // Fetch sequential data in parallel
-  const [predictedCountOrNull, recentPredictionsResult, nextMatchConsensusResult] =
+  const [predictedCountOrNull, recentPredictionsResult, nextBatchConsensusResult, livePredictionsResult] =
     await Promise.all([
       openMatches.length > 0
         ? supabase
@@ -245,27 +216,44 @@ export default async function HomePage() {
             .in("match_id", recentMatchIds)
         : Promise.resolve({ data: [] as Array<{ match_id: number; predicted_home_score: number; predicted_away_score: number; points: number | null }> }),
 
-      nextMatch
+      nextBatchIds.length > 0
         ? supabase
             .from("predictions")
-            .select("predicted_home_score, predicted_away_score")
+            .select("match_id, predicted_home_score, predicted_away_score, user_id")
             .eq("league_id", leagueId)
-            .eq("match_id", nextMatch.id)
-        : Promise.resolve({ data: [] as Array<{ predicted_home_score: number; predicted_away_score: number }> }),
+            .in("match_id", nextBatchIds)
+        : Promise.resolve({ data: [] as Array<{ match_id: number; predicted_home_score: number; predicted_away_score: number; user_id: string }> }),
+
+      liveMatchIds.length > 0
+        ? supabase
+            .from("predictions")
+            .select("match_id, predicted_home_score, predicted_away_score")
+            .eq("user_id", user.id)
+            .eq("league_id", leagueId)
+            .in("match_id", liveMatchIds)
+        : Promise.resolve({ data: [] as Array<{ match_id: number; predicted_home_score: number; predicted_away_score: number }> }),
     ]);
 
   const predictedCount = predictedCountOrNull?.count ?? 0;
   const unpredictedCount = openMatches.length - predictedCount;
 
-  // Consensus for next match
-  const totalMembers = (allMembersResult.data ?? []).length;
-  let consensusHome = 0, consensusDraw = 0, consensusAway = 0;
-  for (const p of (nextMatchConsensusResult.data ?? []) as Array<{ predicted_home_score: number; predicted_away_score: number }>) {
-    if (p.predicted_home_score > p.predicted_away_score) consensusHome++;
-    else if (p.predicted_home_score === p.predicted_away_score) consensusDraw++;
-    else consensusAway++;
+  // Per-match consensus for the next batch, excluding admin
+  type ConsensusEntry = { home: number; draw: number; away: number; total: number };
+  const consensusByMatchId = new Map<number, ConsensusEntry>();
+  for (const p of (nextBatchConsensusResult.data ?? []) as Array<{ match_id: number; predicted_home_score: number; predicted_away_score: number; user_id: string }>) {
+    if (adminUserId && p.user_id === adminUserId) continue;
+    const entry = consensusByMatchId.get(p.match_id) ?? { home: 0, draw: 0, away: 0, total: 0 };
+    if (p.predicted_home_score > p.predicted_away_score) entry.home++;
+    else if (p.predicted_home_score === p.predicted_away_score) entry.draw++;
+    else entry.away++;
+    entry.total++;
+    consensusByMatchId.set(p.match_id, entry);
   }
-  const consensusTotal = consensusHome + consensusDraw + consensusAway;
+
+  // Live predictions keyed by match_id
+  const livePredsByMatchId = new Map(
+    (livePredictionsResult.data ?? []).map((p) => [p.match_id as number, p])
+  );
 
   type MyPrediction = { match_id: number; predicted_home_score: number; predicted_away_score: number; points: number | null };
   const myRecentPredictions: MyPrediction[] = (recentPredictionsResult.data ?? []) as MyPrediction[];
@@ -410,8 +398,8 @@ export default async function HomePage() {
       </div>
 
       <div style={{ padding: "16px 16px 80px", display: "flex", flexDirection: "column", gap: 14 }}>
-        {/* Matchday hero card */}
-        {nextMatch && (
+        {/* Matchday hero card — all matches in the next batch (same kickoff) in one card */}
+        {nextBatch.length > 0 && (
           <div
             style={{
               background: "var(--n1)",
@@ -420,29 +408,28 @@ export default async function HomePage() {
               boxShadow: "var(--sh-md)",
             }}
           >
+            {/* Card header: shared kickoff countdown */}
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                marginBottom: 14,
+                marginBottom: 16,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span
-                  style={{
-                    fontFamily: "var(--font-saira), sans-serif",
-                    fontWeight: 700,
-                    fontSize: 12,
-                    color: "rgba(255,255,255,0.5)",
-                    textTransform: "uppercase",
-                    letterSpacing: 0.8,
-                  }}
-                >
-                  {nextMatch.group_label ? `Group ${nextMatch.group_label} · ` : ""}Next match
-                </span>
-              </div>
-              {nextMatch.allow_late_predictions && new Date(nextMatch.kickoff_time) < new Date() ? (
+              <span
+                style={{
+                  fontFamily: "var(--font-saira), sans-serif",
+                  fontWeight: 700,
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.5)",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.8,
+                }}
+              >
+                Next match{nextBatch.length > 1 ? "es" : ""}
+              </span>
+              {nextBatch[0].allow_late_predictions && new Date(nextBatch[0].kickoff_time) < new Date() ? (
                 <div
                   style={{
                     padding: "3px 9px",
@@ -472,132 +459,118 @@ export default async function HomePage() {
                   }}
                 >
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--r2)", display: "inline-block" }} />
-                  <Countdown kickoffUtc={nextMatch.kickoff_time} />
+                  <Countdown kickoffUtc={nextBatch[0].kickoff_time} />
                 </div>
               )}
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 16,
-                marginBottom: 16,
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 44, lineHeight: 1 }}>{FLAG_EMOJI[nextMatch.home_nation.name] ?? nextMatch.home_nation.flag_code}</span>
-                <span
-                  style={{
-                    fontFamily: "var(--font-saira), sans-serif",
-                    fontWeight: 700,
-                    fontSize: 13,
-                    color: "rgba(255,255,255,0.8)",
-                  }}
-                >
-                  {nextMatch.home_nation.name}
-                </span>
-                {nextMatch.home_nation.fifa_ranking != null && (
-                  <span
-                    style={{
-                      fontFamily: "var(--font-inter), sans-serif",
-                      fontSize: 11,
-                      color: "var(--n6)",
-                    }}
-                  >
-                    #{nextMatch.home_nation.fifa_ranking}
-                  </span>
-                )}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                <span
-                  style={{
-                    fontFamily: "var(--font-anton), sans-serif",
-                    fontSize: 28,
-                    color: "#fff",
-                  }}
-                >
-                  VS
-                </span>
-                <span
-                  style={{
-                    fontFamily: "var(--font-inter), sans-serif",
-                    fontSize: 11,
-                    color: "rgba(255,255,255,0.4)",
-                  }}
-                >
-                  {toIST(nextMatch.kickoff_time)}
-                </span>
-                {nextMatch.venue_city && (
-                  <span
-                    style={{
-                      fontFamily: "var(--font-inter), sans-serif",
-                      fontSize: 11,
-                      color: "var(--n5)",
-                    }}
-                  >
-                    · {nextMatch.venue_city}
-                  </span>
-                )}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 44, lineHeight: 1 }}>{FLAG_EMOJI[nextMatch.away_nation.name] ?? nextMatch.away_nation.flag_code}</span>
-                <span
-                  style={{
-                    fontFamily: "var(--font-saira), sans-serif",
-                    fontWeight: 700,
-                    fontSize: 13,
-                    color: "rgba(255,255,255,0.8)",
-                  }}
-                >
-                  {nextMatch.away_nation.name}
-                </span>
-                {nextMatch.away_nation.fifa_ranking != null && (
-                  <span
-                    style={{
-                      fontFamily: "var(--font-inter), sans-serif",
-                      fontSize: 11,
-                      color: "var(--n6)",
-                    }}
-                  >
-                    #{nextMatch.away_nation.fifa_ranking}
-                  </span>
-                )}
-              </div>
-            </div>
+            {/* One section per match, separated by a divider */}
+            {nextBatch.map((match, batchIdx) => {
+              const consensus = consensusByMatchId.get(match.id) ?? { home: 0, draw: 0, away: 0, total: 0 };
+              return (
+                <div key={match.id}>
+                  {batchIdx > 0 && (
+                    <div style={{ borderTop: "1px solid var(--n9)", margin: "16px 0" }} />
+                  )}
 
-            {/* Consensus bar */}
-            {consensusTotal > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ display: "flex", height: 6, borderRadius: 4, overflow: "hidden", gap: 1 }}>
-                  {consensusHome > 0 && (
-                    <div style={{ flex: consensusHome, background: "var(--g3)", borderRadius: "4px 0 0 4px" }} />
+                  {/* Group label for this match */}
+                  {match.group_label && (
+                    <div
+                      style={{
+                        fontFamily: "var(--font-saira), sans-serif",
+                        fontWeight: 700,
+                        fontSize: 11,
+                        color: "rgba(255,255,255,0.35)",
+                        textTransform: "uppercase",
+                        letterSpacing: 0.8,
+                        marginBottom: 10,
+                      }}
+                    >
+                      Group {match.group_label}
+                    </div>
                   )}
-                  {consensusDraw > 0 && (
-                    <div style={{ flex: consensusDraw, background: "rgba(255,255,255,0.25)" }} />
-                  )}
-                  {consensusAway > 0 && (
-                    <div style={{ flex: consensusAway, background: "#f0a030", borderRadius: "0 4px 4px 0" }} />
-                  )}
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 10, color: "var(--g4)" }}>● Home</span>
-                    <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 10, color: "rgba(255,255,255,0.4)" }}>● Draw</span>
-                    <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 10, color: "#f0a030" }}>● Away</span>
+
+                  {/* Teams */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 16,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 44, lineHeight: 1 }}>{FLAG_EMOJI[match.home_nation.name] ?? match.home_nation.flag_code}</span>
+                      <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "rgba(255,255,255,0.8)" }}>
+                        {match.home_nation.name}
+                      </span>
+                      {match.home_nation.fifa_ranking != null && (
+                        <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n6)" }}>
+                          #{match.home_nation.fifa_ranking}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                      <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 28, color: "#fff" }}>VS</span>
+                      <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                        {toIST(match.kickoff_time)}
+                      </span>
+                      {match.venue_city && (
+                        <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n5)" }}>
+                          · {match.venue_city}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 44, lineHeight: 1 }}>{FLAG_EMOJI[match.away_nation.name] ?? match.away_nation.flag_code}</span>
+                      <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "rgba(255,255,255,0.8)" }}>
+                        {match.away_nation.name}
+                      </span>
+                      {match.away_nation.fifa_ranking != null && (
+                        <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n6)" }}>
+                          #{match.away_nation.fifa_ranking}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
-                    {consensusTotal} of {totalMembers} predicted
-                  </span>
-                </div>
-              </div>
-            )}
 
+                  {/* Consensus bar */}
+                  {consensus.total > 0 && (
+                    <div>
+                      <div style={{ display: "flex", height: 6, borderRadius: 4, overflow: "hidden", gap: 1 }}>
+                        {consensus.home > 0 && (
+                          <div style={{ flex: consensus.home, background: "var(--g3)", borderRadius: "4px 0 0 4px" }} />
+                        )}
+                        {consensus.draw > 0 && (
+                          <div style={{ flex: consensus.draw, background: "rgba(255,255,255,0.25)" }} />
+                        )}
+                        {consensus.away > 0 && (
+                          <div style={{ flex: consensus.away, background: "#f0a030", borderRadius: "0 4px 4px 0" }} />
+                        )}
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+                        <div style={{ display: "flex", gap: 10 }}>
+                          <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 10, color: "var(--g4)" }}>● Home</span>
+                          <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 10, color: "rgba(255,255,255,0.4)" }}>● Draw</span>
+                          <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 10, color: "#f0a030" }}>● Away</span>
+                        </div>
+                        <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
+                          {consensus.total} of {competingPlayerCount} predicted
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Single CTA at the bottom */}
             <Link
               href="/predict"
               style={{
                 display: "block",
+                marginTop: 16,
                 padding: "12px 0",
                 borderRadius: 12,
                 background: "var(--g3)",
@@ -614,180 +587,184 @@ export default async function HomePage() {
           </div>
         )}
 
-        {/* Live now card */}
-        {liveMatch && (
-          <Link
-            href={`/match/${liveMatch.id}`}
-            style={{ textDecoration: "none", display: "block" }}
-          >
-          <div
-            style={{
-              background: "var(--n1)",
-              borderRadius: 16,
-              padding: "14px 16px",
-              boxShadow: "var(--sh-md)",
-              border: "1px solid rgba(226,59,72,0.3)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 12,
-              }}
+        {/* Live now cards — one per live match */}
+        {liveMatches.map((liveMatch) => {
+          const livePred = livePredsByMatchId.get(liveMatch.id) ?? null;
+          return (
+            <Link
+              key={liveMatch.id}
+              href={`/match/${liveMatch.id}`}
+              style={{ textDecoration: "none", display: "block" }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: "var(--r2)",
-                    display: "inline-block",
-                    animation: "pulse 1.5s ease-in-out infinite",
-                  }}
-                />
-                <span
-                  style={{
-                    fontFamily: "var(--font-saira), sans-serif",
-                    fontWeight: 700,
-                    fontSize: 12,
-                    color: "var(--r3)",
-                    textTransform: "uppercase",
-                    letterSpacing: 1,
-                  }}
-                >
-                  Live now
-                </span>
-                {liveMatch.group_label && (
-                  <span
-                    style={{
-                      fontFamily: "var(--font-saira), sans-serif",
-                      fontSize: 11,
-                      color: "rgba(255,255,255,0.35)",
-                    }}
-                  >
-                    · Group {liveMatch.group_label}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 8,
-              }}
-            >
-              {/* Home */}
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
-                <span
-                  style={{
-                    fontFamily: "var(--font-saira), sans-serif",
-                    fontWeight: 700,
-                    fontSize: 14,
-                    color: "#fff",
-                  }}
-                >
-                  {liveMatch.home_nation.flag_code} {liveMatch.home_nation.name}
-                </span>
-              </div>
-
-              {/* Score */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                {liveMatch.home_score != null && liveMatch.away_score != null ? (
-                  <span
-                    style={{
-                      fontFamily: "var(--font-anton), sans-serif",
-                      fontSize: 24,
-                      color: "#fff",
-                      letterSpacing: 2,
-                    }}
-                  >
-                    {liveMatch.home_score} – {liveMatch.away_score}
-                  </span>
-                ) : (
-                  <span
-                    style={{
-                      fontFamily: "var(--font-saira), sans-serif",
-                      fontWeight: 700,
-                      fontSize: 16,
-                      color: "rgba(255,255,255,0.5)",
-                    }}
-                  >
-                    vs
-                  </span>
-                )}
-              </div>
-
-              {/* Away */}
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
-                <span
-                  style={{
-                    fontFamily: "var(--font-saira), sans-serif",
-                    fontWeight: 700,
-                    fontSize: 14,
-                    color: "#fff",
-                    textAlign: "right",
-                  }}
-                >
-                  {liveMatch.away_nation.name} {liveMatch.away_nation.flag_code}
-                </span>
-              </div>
-            </div>
-
-            {/* User's prediction */}
-            <div
-              style={{
-                marginTop: 12,
-                paddingTop: 12,
-                borderTop: "1px solid rgba(255,255,255,0.08)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <span
+              <div
                 style={{
-                  fontFamily: "var(--font-inter), sans-serif",
-                  fontSize: 12,
-                  color: "rgba(255,255,255,0.45)",
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
+                  background: "var(--n1)",
+                  borderRadius: 16,
+                  padding: "14px 16px",
+                  boxShadow: "var(--sh-md)",
+                  border: "1px solid rgba(226,59,72,0.3)",
                 }}
               >
-                Your pick
-              </span>
-              {livePred ? (
-                <span
+                <div
                   style={{
-                    fontFamily: "var(--font-anton), sans-serif",
-                    fontSize: 18,
-                    color: "var(--g4)",
-                    letterSpacing: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 12,
                   }}
                 >
-                  {livePred.predicted_home_score} – {livePred.predicted_away_score}
-                </span>
-              ) : (
-                <span
+                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: "var(--r2)",
+                        display: "inline-block",
+                        animation: "pulse 1.5s ease-in-out infinite",
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontFamily: "var(--font-saira), sans-serif",
+                        fontWeight: 700,
+                        fontSize: 12,
+                        color: "var(--r3)",
+                        textTransform: "uppercase",
+                        letterSpacing: 1,
+                      }}
+                    >
+                      Live now
+                    </span>
+                    {liveMatch.group_label && (
+                      <span
+                        style={{
+                          fontFamily: "var(--font-saira), sans-serif",
+                          fontSize: 11,
+                          color: "rgba(255,255,255,0.35)",
+                        }}
+                      >
+                        · Group {liveMatch.group_label}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div
                   style={{
-                    fontFamily: "var(--font-inter), sans-serif",
-                    fontSize: 12,
-                    color: "var(--n6)",
-                    fontStyle: "italic",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
                   }}
                 >
-                  No prediction made
-                </span>
-              )}
-            </div>
-          </div>
-          </Link>
-        )}
+                  {/* Home */}
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-saira), sans-serif",
+                        fontWeight: 700,
+                        fontSize: 14,
+                        color: "#fff",
+                      }}
+                    >
+                      {liveMatch.home_nation.flag_code} {liveMatch.home_nation.name}
+                    </span>
+                  </div>
+
+                  {/* Score */}
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                    {liveMatch.home_score != null && liveMatch.away_score != null ? (
+                      <span
+                        style={{
+                          fontFamily: "var(--font-anton), sans-serif",
+                          fontSize: 24,
+                          color: "#fff",
+                          letterSpacing: 2,
+                        }}
+                      >
+                        {liveMatch.home_score} – {liveMatch.away_score}
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          fontFamily: "var(--font-saira), sans-serif",
+                          fontWeight: 700,
+                          fontSize: 16,
+                          color: "rgba(255,255,255,0.5)",
+                        }}
+                      >
+                        vs
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Away */}
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-saira), sans-serif",
+                        fontWeight: 700,
+                        fontSize: 14,
+                        color: "#fff",
+                        textAlign: "right",
+                      }}
+                    >
+                      {liveMatch.away_nation.name} {liveMatch.away_nation.flag_code}
+                    </span>
+                  </div>
+                </div>
+
+                {/* User's prediction */}
+                <div
+                  style={{
+                    marginTop: 12,
+                    paddingTop: 12,
+                    borderTop: "1px solid rgba(255,255,255,0.08)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: "var(--font-inter), sans-serif",
+                      fontSize: 12,
+                      color: "rgba(255,255,255,0.45)",
+                      textTransform: "uppercase",
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    Your pick
+                  </span>
+                  {livePred ? (
+                    <span
+                      style={{
+                        fontFamily: "var(--font-anton), sans-serif",
+                        fontSize: 18,
+                        color: "var(--g4)",
+                        letterSpacing: 1,
+                      }}
+                    >
+                      {livePred.predicted_home_score} – {livePred.predicted_away_score}
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        fontFamily: "var(--font-inter), sans-serif",
+                        fontSize: 12,
+                        color: "var(--n6)",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      No prediction made
+                    </span>
+                  )}
+                </div>
+              </div>
+            </Link>
+          );
+        })}
 
         {/* Rank tile */}
         <Link
@@ -809,7 +786,7 @@ export default async function HomePage() {
               {predRank !== null ? `#${predRank}` : "--"}
             </span>
             <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)" }}>
-              /{leaderboardRows.length} players →
+              /{competingPlayerCount} players →
             </span>
           </div>
         </Link>
