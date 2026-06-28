@@ -57,6 +57,12 @@ function getCountdownChip(match: Match): { label: string; color: string; bg: str
   return { label, color: "var(--g4)", bg: "rgba(0,184,92,0.15)" };
 }
 
+// h1's submission window closes at kickoff. Module-level so it isn't flagged as
+// an impure call during render (mirrors isMatchLocked's use of Date.now).
+function hasKickedOff(kickoffTime: string): boolean {
+  return Date.now() >= new Date(kickoffTime).getTime();
+}
+
 function isMatchLocked(match: Match): boolean {
   const now = Date.now();
   const minsUntilKickoff = (new Date(match.kickoff_time).getTime() - now) / 60000;
@@ -142,16 +148,21 @@ function CheckpointSection({
   leagueId,
   phases,
   myPicks,
+  kickoffTime,
 }: {
   matchId: number;
   leagueId: string;
   phases: CheckpointPhase[];
   myPicks: CheckpointPick[];
+  kickoffTime: string;
 }) {
-  if (phases.length === 0) return null;
+  // h1 locks at kickoff regardless of whether the cron has flipped its status to
+  // "closed" yet — kickoff is a known time, so treat h1 as locked once it passes.
+  const isLocked = (p: CheckpointPhase) =>
+    ["closed", "scored"].includes(p.status) || (p.phase === "h1" && hasKickedOff(kickoffTime));
 
-  const openPhases = phases.filter((p) => p.status === "open").sort((a, b) => a.phase.localeCompare(b.phase));
-  const closedPhases = phases.filter((p) => ["closed", "scored"].includes(p.status));
+  const openPhases = phases.filter((p) => p.status === "open" && !isLocked(p)).sort((a, b) => a.phase.localeCompare(b.phase));
+  const closedPhases = phases.filter((p) => isLocked(p));
 
   // One score pair per open phase, keyed by phase name
   const initScores = () => {
@@ -168,6 +179,8 @@ function CheckpointSection({
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState(false);
 
+  if (phases.length === 0) return null;
+
   const allSaved = openPhases.every((p) => myPicks.some((pk) => pk.phase === p.phase));
   const anyDirty = openPhases.some((p) => {
     const [h, a] = phaseScores[p.phase] ?? [0, 0];
@@ -176,11 +189,14 @@ function CheckpointSection({
   });
 
   const handleSave = async () => {
-    const toSubmit = getOpenPhasesToSubmit(phases, phaseScores);
+    const toSubmit = getOpenPhasesToSubmit(phases, phaseScores).filter(
+      // never submit a phase the client now considers locked (e.g. h1 after kickoff)
+      (item) => !isLocked({ phase: item.phase, status: "open", actual_home: null, actual_away: null } as CheckpointPhase)
+    );
     if (toSubmit.length === 0) return;
     setSaving(true);
     try {
-      await Promise.all(
+      const responses = await Promise.all(
         toSubmit.map((item) =>
           fetch("/api/checkpoint-picks", {
             method: "POST",
@@ -193,9 +209,15 @@ function CheckpointSection({
           })
         )
       );
-      setCommitted({ ...phaseScores });
-      setFlash(true);
-      setTimeout(() => setFlash(false), 1500);
+      const failed = responses.filter((r) => !r.ok);
+      if (failed.length > 0) {
+        const data = await failed[0].json().catch(() => ({})) as { error?: string };
+        alert(data.error ?? "Some picks could not be saved (window may have closed). Refresh and try again.");
+      } else {
+        setCommitted({ ...phaseScores });
+        setFlash(true);
+        setTimeout(() => setFlash(false), 1500);
+      }
     } catch {
       alert("Network error");
     } finally {
@@ -475,6 +497,7 @@ export default function PredictClient({ matches, existingPredictions, leagueId, 
                       leagueId={leagueId}
                       phases={matchPhases}
                       myPicks={matchPicks}
+                      kickoffTime={match.kickoff_time}
                     />
                   )}
 

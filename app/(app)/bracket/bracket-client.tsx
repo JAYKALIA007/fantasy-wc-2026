@@ -49,18 +49,30 @@ export default function BracketClient({ matches, myPicks, locked, lockAt, standi
     router.refresh();
   }
 
-  return (
-    <div style={{ maxWidth: 480, margin: "0 auto", padding: "16px 14px 90px", minHeight: "100%", background: "var(--bg)" }}>
-      <h1 style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 30, color: "var(--n0)", margin: "0 0 4px" }}>RO32 Bracket</h1>
-      <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 6px", lineHeight: 1.5 }}>
-        Pick who advances in each of the 16 ties. {locked ? "Bracket is locked." : "Lock"}{!locked && lockAt ? ` at ${toISTWithDay(lockAt)}.` : ""}
-      </p>
-      {!locked && (
-        <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12, color: pickedCount === matches.length ? "var(--g2)" : "var(--n5)", margin: "0 0 14px" }}>
-          {pickedCount} / {matches.length} picked
-        </p>
-      )}
+  const standingsBlock = standings.length > 0 && (
+    <div style={{ background: "var(--surf)", borderRadius: 14, padding: "16px", boxShadow: "var(--sh-sm)", marginTop: locked ? 4 : 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 13, color: "var(--n0)", textTransform: "uppercase", letterSpacing: 0.8 }}>Bracket standings</span>
+        <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n5)" }}>{resolvedCount}/{matches.length} ties decided</span>
+      </div>
+      {standings.map((s, i) => (
+        <div key={s.user_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--n8)" }}>
+          <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 14, color: s.isMe ? "var(--g2)" : "var(--n0)", fontWeight: s.isMe ? 700 : 400 }}>
+            {i + 1}. {s.name}{s.isMe ? " (you)" : ""}
+          </span>
+          <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 14, color: "var(--n0)" }}>{s.correct} correct</span>
+        </div>
+      ))}
+    </div>
+  );
 
+  const picksBlock = (
+    <>
+      {locked && (
+        <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 13, color: "var(--n0)", textTransform: "uppercase", letterSpacing: 0.8, margin: "20px 2px 10px" }}>
+          Your picks
+        </div>
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {matches.map((m, i) => {
           const sel = picks[m.id];
@@ -101,43 +113,47 @@ export default function BracketClient({ matches, myPicks, locked, lockAt, standi
           );
         })}
       </div>
+    </>
+  );
 
-      {error && <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--r2)", marginTop: 12 }}>{error}</p>}
-      {savedMsg && <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--g2)", marginTop: 12 }}>{savedMsg}</p>}
-
-      {/* Standings */}
-      {standings.length > 0 && (
-        <div style={{ background: "var(--surf)", borderRadius: 14, padding: "16px", boxShadow: "var(--sh-sm)", marginTop: 18 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 13, color: "var(--n0)", textTransform: "uppercase", letterSpacing: 0.8 }}>Bracket standings</span>
-            <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n5)" }}>{resolvedCount}/{matches.length} ties decided</span>
-          </div>
-          {standings.map((s, i) => (
-            <div key={s.user_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--n8)" }}>
-              <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 14, color: s.isMe ? "var(--g2)" : "var(--n0)", fontWeight: s.isMe ? 700 : 400 }}>
-                {i + 1}. {s.name}{s.isMe ? " (you)" : ""}
-              </span>
-              <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 14, color: "var(--n0)" }}>{s.correct} correct</span>
-            </div>
-          ))}
-        </div>
+  return (
+    <div style={{ maxWidth: 480, margin: "0 auto", padding: "16px 14px 90px", minHeight: "100%", background: "var(--bg)" }}>
+      <h1 style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 30, color: "var(--n0)", margin: "0 0 4px" }}>RO32 Bracket</h1>
+      <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 6px", lineHeight: 1.5 }}>
+        Pick who advances in each of the 16 ties. {locked ? "Bracket is locked." : "Lock"}{!locked && lockAt ? ` at ${toISTWithDay(lockAt)}.` : ""}
+      </p>
+      {!locked && (
+        <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12, color: pickedCount === matches.length ? "var(--g2)" : "var(--n5)", margin: "0 0 14px" }}>
+          {pickedCount} / {matches.length} picked
+        </p>
       )}
 
-      {/* Submit bar */}
-      {!locked && (
-        <div style={{ position: "sticky", bottom: 0, paddingTop: 12, marginTop: 8 }}>
-          <button
-            onClick={submit}
-            disabled={saving || pickedCount === 0}
-            style={{
-              width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
-              background: pickedCount === 0 ? "var(--n8)" : "var(--g3)", color: pickedCount === 0 ? "var(--n5)" : "#fff",
-              fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 16, cursor: saving || pickedCount === 0 ? "not-allowed" : "pointer",
-            }}
-          >
-            {saving ? "Saving…" : pickedCount < matches.length ? `Save bracket (${pickedCount}/${matches.length})` : "Save bracket ✓"}
-          </button>
-        </div>
+      {/* Once locked, standings lead and the user's picks sit below them. */}
+      {locked ? (
+        <>
+          {standingsBlock}
+          {picksBlock}
+        </>
+      ) : (
+        <>
+          {picksBlock}
+          {error && <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--r2)", marginTop: 12 }}>{error}</p>}
+          {savedMsg && <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--g2)", marginTop: 12 }}>{savedMsg}</p>}
+          {standingsBlock}
+          <div style={{ position: "sticky", bottom: 0, paddingTop: 12, marginTop: 8 }}>
+            <button
+              onClick={submit}
+              disabled={saving || pickedCount === 0}
+              style={{
+                width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
+                background: pickedCount === 0 ? "var(--n8)" : "var(--g3)", color: pickedCount === 0 ? "var(--n5)" : "#fff",
+                fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 16, cursor: saving || pickedCount === 0 ? "not-allowed" : "pointer",
+              }}
+            >
+              {saving ? "Saving…" : pickedCount < matches.length ? `Save bracket (${pickedCount}/${matches.length})` : "Save bracket ✓"}
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

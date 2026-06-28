@@ -90,6 +90,24 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid request body" }, { status: 400 });
   }
 
+  // h1 (the half-time guess) locks deterministically at KICKOFF — a known time,
+  // so we gate on it directly rather than depending on the cron to have flipped
+  // the phase to "closed" yet. This closes the gap between kickoff and the next
+  // cron tick, and protects against stale clients submitting after kickoff.
+  if (phase === "h1") {
+    const { data: match } = await supabase
+      .from("matches")
+      .select("kickoff_time")
+      .eq("id", match_id)
+      .maybeSingle();
+    if (!match) {
+      return Response.json({ error: "Match not found" }, { status: 404 });
+    }
+    if (new Date() >= new Date(match.kickoff_time as string)) {
+      return Response.json({ error: "Half-time predictions lock at kickoff" }, { status: 403 });
+    }
+  }
+
   // Verify the phase window is open
   const { data: phaseRow } = await supabase
     .from("match_checkpoint_phases")
