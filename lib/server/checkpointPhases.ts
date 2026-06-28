@@ -3,10 +3,11 @@
 // set of window transitions to apply: open / close / snapshot-and-score.
 //
 // Window lifecycle (see issues/prd.md "Window lifecycle"):
-//   h1  predicts the half-time score; opens pre-match, closes at kickoff,
-//       its boundary (actual) is captured at the half-time break.
-//   h2  predicts the 90' score; opens at kickoff, closes at 2nd-half start,
-//       boundary captured at full-time / start of extra time.
+//   h1  predicts the half-time score; opens pre-match (upfront), closes at
+//       kickoff, its boundary (actual) is captured at the half-time break.
+//   h2  predicts the 90' score; opens pre-match (upfront, alongside h1), stays
+//       editable through the first half, closes at half-time, boundary captured
+//       at full-time / start of extra time.
 //   et  predicts the 120' score; opens at end of 90' ONLY if level, closes at
 //       ET start, boundary captured at end of ET.
 //   pens predicts the shootout tally; opens at end of ET ONLY if level, closes
@@ -64,21 +65,24 @@ export function computePhaseTransitions(
 
   switch (stage) {
     case "pre":
-      open("h1", false); // h1 opens with the pre-match window
+      // Both h1 and h2 are shown upfront, before kickoff (no per-phase push).
+      open("h1", false);
+      open("h2", false);
       break;
 
     case "first_half":
       close("h1"); // kickoff passed — HT prediction window closes (boundary at HT)
-      open("h2", true); // 90' prediction window opens
+      open("h2", false); // fallback if pre was missed; quiet (h2 is an upfront window)
       break;
 
     case "halftime":
       score("h1", home, away); // the HT score is final now
+      close("h2"); // half-time reached — 90' prediction locks (had the first half to adjust)
       break;
 
     case "second_half":
       close("h1"); // recovery: if HT was missed, still close (admin scores)
-      close("h2"); // 2nd half started — 90' prediction window closes
+      close("h2"); // recovery net — lock the 90' window if halftime was missed
       break;
 
     case "extra_time":

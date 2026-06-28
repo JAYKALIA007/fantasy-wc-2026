@@ -200,14 +200,17 @@ function computePhaseTransitions(stored: StoredPhase[], detected: DetectedState)
   const { stage, home, away, shootoutHome, shootoutAway, decidedInRegulation } = detected;
   switch (stage) {
     case "pre":
+      // Both h1 + h2 shown upfront, no push. (Mirror of lib/server/checkpointPhases.ts)
       open("h1", false);
+      open("h2", false);
       break;
     case "first_half":
       close("h1");
-      open("h2", true);
+      open("h2", false); // quiet fallback if pre was missed
       break;
     case "halftime":
       score("h1", home, away);
+      close("h2"); // B: 90' prediction locks at half-time
       break;
     case "second_half":
       close("h1");
@@ -373,9 +376,33 @@ serve(async (_req: Request) => {
     finalPass.push({ match_id: match.id, result: `scored ${score.home}-${score.away}` });
   }
 
+  // ── PASS 1.5: open h1 + h2 UPFRONT for all upcoming knockout matches ────────
+  // Opening needs no ESPN data, so it isn't gated by the live proximity window:
+  // the HT and FT score inputs appear as soon as the match exists, exactly like
+  // the regular scoreline prediction. Insert-ignore leaves existing phase rows
+  // (and their statuses) untouched, so this never re-opens a closed window.
+  const { data: upcomingKo } = await supabase
+    .from("matches")
+    .select("id")
+    .in("round_id", KNOCKOUT_ROUND_IDS)
+    .eq("status", "scheduled")
+    .gt("kickoff_time", now.toISOString());
+  let upfrontOpened = 0;
+  for (const m of (upcomingKo ?? []) as { id: number }[]) {
+    for (const phase of ["h1", "h2"] as const) {
+      await supabase
+        .from("match_checkpoint_phases")
+        .upsert(
+          { match_id: m.id, phase, status: "open", opened_at: now.toISOString(), updated_at: now.toISOString() },
+          { onConflict: "match_id,phase", ignoreDuplicates: true }
+        );
+    }
+    upfrontOpened++;
+  }
+
   // ── PASS 2: live checkpoint windows (knockouts only) ───────────────────────
-  // Window of interest: from 3h before kickoff (so h1 opens pre-match) through
-  // ~4h after (covers 90' + ET + pens). Never touches finished matches.
+  // Closing/scoring/snapshotting + lazy et/pens need live ESPN state, so this
+  // pass stays proximity-windowed: ~4h before kickoff through ~3h after.
   const cpFrom = new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString();
   const cpTo = new Date(now.getTime() + 3 * 60 * 60 * 1000).toISOString();
   const { data: liveMatches } = await supabase
@@ -458,7 +485,7 @@ serve(async (_req: Request) => {
   }
 
   return new Response(
-    JSON.stringify({ final: finalPass, checkpoints: checkpointPass, pushes: pushes.length }),
+    JSON.stringify({ final: finalPass, upfrontOpened, checkpoints: checkpointPass, pushes: pushes.length }),
     { status: 200, headers: { "Content-Type": "application/json" } }
   );
 });

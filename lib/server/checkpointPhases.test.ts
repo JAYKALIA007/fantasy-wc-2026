@@ -21,20 +21,22 @@ const phase = (phase: StoredPhase["phase"], status: StoredPhase["status"]): Stor
 });
 
 describe("computePhaseTransitions", () => {
-  it("pre-match opens h1 (not a live push)", () => {
+  it("pre-match opens BOTH h1 and h2 upfront (neither a live push)", () => {
     const a = computePhaseTransitions(NONE, detected({ stage: "pre" }));
-    expect(a).toEqual([{ phase: "h1", status: "open", opened: false }]);
+    expect(a).toContainEqual({ phase: "h1", status: "open", opened: false });
+    expect(a).toContainEqual({ phase: "h2", status: "open", opened: false });
   });
 
-  it("kickoff closes h1 and opens h2 as a live window", () => {
+  it("kickoff closes h1; opens h2 only as a quiet fallback (no push)", () => {
     const a = computePhaseTransitions([phase("h1", "open")], detected({ stage: "first_half", home: 1, away: 0 }));
     expect(a).toContainEqual({ phase: "h1", status: "closed" });
-    expect(a).toContainEqual({ phase: "h2", status: "open", opened: true });
+    expect(a).toContainEqual({ phase: "h2", status: "open", opened: false });
   });
 
-  it("halftime scores h1 with the current score", () => {
+  it("halftime scores h1 and locks h2 (B: editable through the first half)", () => {
     const a = computePhaseTransitions([phase("h1", "closed"), phase("h2", "open")], detected({ stage: "halftime", home: 2, away: 1 }));
     expect(a).toContainEqual({ phase: "h1", status: "scored", actual_home: 2, actual_away: 1 });
+    expect(a).toContainEqual({ phase: "h2", status: "closed" });
   });
 
   it("2nd half closes h2", () => {

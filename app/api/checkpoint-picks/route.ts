@@ -1,9 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 
 // GET /api/checkpoint-picks?match_id=X
-// Returns: { phases: PhaseState[], my_pick: Pick | null }
-// Phases are the open/closed rows for the match; my_pick is the caller's pick
-// for the currently-open phase (null if not submitted).
+// Returns: { phases: PhaseState[], my_open_picks: Pick[], my_closed_picks: Pick[] }
+// Phases are the open/closed rows for the match; my_open_picks holds the caller's
+// pick for each currently-open phase (h1 and h2 can both be open at once).
 export async function GET(request: Request) {
   const supabase = await createClient();
 
@@ -25,17 +25,17 @@ export async function GET(request: Request) {
     .eq("match_id", matchId)
     .order("phase");
 
-  const openPhase = (phases ?? []).find((p) => p.status === "open");
-  let myPick = null;
-  if (openPhase) {
-    const { data: pickRow } = await supabase
+  // h1 + h2 can both be open at once; return the caller's pick for every open phase.
+  const openPhases = (phases ?? []).filter((p) => p.status === "open");
+  let myOpenPicks: { phase: string; predicted_home: number; predicted_away: number }[] = [];
+  if (openPhases.length > 0) {
+    const { data: pickRows } = await supabase
       .from("live_checkpoint_predictions")
       .select("phase, predicted_home, predicted_away")
       .eq("user_id", user.id)
       .eq("match_id", matchId)
-      .eq("phase", openPhase.phase)
-      .maybeSingle();
-    myPick = pickRow;
+      .in("phase", openPhases.map((p) => p.phase));
+    myOpenPicks = (pickRows ?? []) as typeof myOpenPicks;
   }
 
   // Also fetch the user's picks for closed/scored phases (for recap)
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 
   return Response.json({
     phases: phases ?? [],
-    my_pick: myPick,
+    my_open_picks: myOpenPicks,
     my_closed_picks: myClosedPicks,
   });
 }

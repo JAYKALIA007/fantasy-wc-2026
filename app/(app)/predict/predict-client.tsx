@@ -135,56 +135,11 @@ function CheckpointSection({
   phases: CheckpointPhase[];
   myPicks: CheckpointPick[];
 }) {
-  const openPhase = phases.find((p) => p.status === "open");
-  const closedPhases = phases.filter((p) => ["closed", "scored"].includes(p.status));
-
-  const existingOpenPick = openPhase
-    ? myPicks.find((p) => p.phase === openPhase.phase)
-    : null;
-
-  const [home, setHome] = useState(existingOpenPick?.predicted_home ?? 0);
-  const [away, setAway] = useState(existingOpenPick?.predicted_away ?? 0);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(existingOpenPick != null);
-  const [committedHome, setCommittedHome] = useState(existingOpenPick?.predicted_home ?? 0);
-  const [committedAway, setCommittedAway] = useState(existingOpenPick?.predicted_away ?? 0);
-  const [flash, setFlash] = useState(false);
-
   if (phases.length === 0) return null;
 
-  const isDirty = home !== committedHome || away !== committedAway;
-
-  const handleSubmit = async () => {
-    if (!openPhase) return;
-    setSaving(true);
-    try {
-      const res = await fetch("/api/checkpoint-picks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          match_id: matchId,
-          phase: openPhase.phase,
-          predicted_home: home,
-          predicted_away: away,
-          league_id: leagueId,
-        }),
-      });
-      if (res.ok) {
-        setSaved(true);
-        setCommittedHome(home);
-        setCommittedAway(away);
-        setFlash(true);
-        setTimeout(() => setFlash(false), 1500);
-      } else {
-        const data = await res.json() as { error?: string };
-        alert(data.error ?? "Failed to save");
-      }
-    } catch {
-      alert("Network error");
-    } finally {
-      setSaving(false);
-    }
-  };
+  // h1 + h2 can be open at once (both shown upfront); render an input per open phase.
+  const openPhases = phases.filter((p) => p.status === "open").sort((a, b) => a.phase.localeCompare(b.phase));
+  const closedPhases = phases.filter((p) => ["closed", "scored"].includes(p.status));
 
   return (
     <div style={{ marginTop: 12, borderTop: "1px dashed rgba(255,255,255,0.12)", paddingTop: 12 }}>
@@ -233,42 +188,99 @@ function CheckpointSection({
         );
       })}
 
-      {/* Open phase input */}
-      {openPhase && (
-        <div style={{ marginTop: 10 }}>
-          <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12, color: "var(--gold)", marginBottom: 8 }}>
-            ⚡ {PHASE_LABELS[openPhase.phase] ?? openPhase.phase} — predict now
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
-            <ScoreStepper value={home} onChange={setHome} disabled={saving} />
-            <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 18, color: "var(--n5)" }}>–</span>
-            <ScoreStepper value={away} onChange={setAway} disabled={saving} />
-          </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontFamily: "var(--font-inter), sans-serif" }}>
-              Exact <b style={{ color: "var(--g4)" }}>+2</b>
-            </span>
-            {flash ? (
-              <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12, color: "var(--g3)" }}>✓ Saved!</span>
-            ) : saved && !isDirty ? (
-              <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 600, fontSize: 11, color: "var(--g4)" }}>✓ Saved</span>
-            ) : null}
-          </div>
-          <button
-            onClick={handleSubmit}
-            disabled={saving}
-            style={{
-              marginTop: 8, width: "100%", padding: "10px 0", borderRadius: 10, border: "none",
-              background: saved && !isDirty ? "rgba(0,184,92,0.2)" : "rgba(0,184,92,0.35)",
-              color: saved && !isDirty ? "var(--g4)" : "#fff",
-              fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13,
-              cursor: saving ? "not-allowed" : "pointer",
-            }}
-          >
-            {saving ? "Saving…" : saved && !isDirty ? "Update pick" : "Save pick"}
-          </button>
-        </div>
-      )}
+      {/* One input per open phase (h1 locks at kickoff, h2 at half-time) */}
+      {openPhases.map((p) => (
+        <OpenPhaseInput
+          key={p.phase}
+          matchId={matchId}
+          leagueId={leagueId}
+          phase={p.phase}
+          existingPick={myPicks.find((pk) => pk.phase === p.phase) ?? null}
+        />
+      ))}
+    </div>
+  );
+}
+
+function OpenPhaseInput({
+  matchId,
+  leagueId,
+  phase,
+  existingPick,
+}: {
+  matchId: number;
+  leagueId: string;
+  phase: string;
+  existingPick: CheckpointPick | null;
+}) {
+  const [home, setHome] = useState(existingPick?.predicted_home ?? 0);
+  const [away, setAway] = useState(existingPick?.predicted_away ?? 0);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(existingPick != null);
+  const [committedHome, setCommittedHome] = useState(existingPick?.predicted_home ?? 0);
+  const [committedAway, setCommittedAway] = useState(existingPick?.predicted_away ?? 0);
+  const [flash, setFlash] = useState(false);
+
+  const isDirty = home !== committedHome || away !== committedAway;
+
+  const handleSubmit = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/checkpoint-picks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ match_id: matchId, phase, predicted_home: home, predicted_away: away, league_id: leagueId }),
+      });
+      if (res.ok) {
+        setSaved(true);
+        setCommittedHome(home);
+        setCommittedAway(away);
+        setFlash(true);
+        setTimeout(() => setFlash(false), 1500);
+      } else {
+        const data = await res.json() as { error?: string };
+        alert(data.error ?? "Failed to save");
+      }
+    } catch {
+      alert("Network error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12, color: "var(--gold)", marginBottom: 8 }}>
+        ⚡ {PHASE_LABELS[phase] ?? phase} — predict now
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
+        <ScoreStepper value={home} onChange={setHome} disabled={saving} />
+        <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 18, color: "var(--n5)" }}>–</span>
+        <ScoreStepper value={away} onChange={setAway} disabled={saving} />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontFamily: "var(--font-inter), sans-serif" }}>
+          Exact <b style={{ color: "var(--g4)" }}>+2</b>
+        </span>
+        {flash ? (
+          <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12, color: "var(--g3)" }}>✓ Saved!</span>
+        ) : saved && !isDirty ? (
+          <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 600, fontSize: 11, color: "var(--g4)" }}>✓ Saved</span>
+        ) : null}
+      </div>
+      <button
+        onClick={handleSubmit}
+        disabled={saving}
+        style={{
+          marginTop: 8, width: "100%", padding: "10px 0", borderRadius: 10, border: "none",
+          background: saved && !isDirty ? "rgba(0,184,92,0.2)" : "rgba(0,184,92,0.35)",
+          color: saved && !isDirty ? "var(--g4)" : "#fff",
+          fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13,
+          cursor: saving ? "not-allowed" : "pointer",
+        }}
+      >
+        {saving ? "Saving…" : saved && !isDirty ? "Update pick" : "Save pick"}
+      </button>
     </div>
   );
 }
