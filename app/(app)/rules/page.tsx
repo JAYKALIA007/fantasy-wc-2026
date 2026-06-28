@@ -143,6 +143,10 @@ export default async function RulesPage() {
               a: "Live checkpoint picks. Set your half-time and full-time score guesses before kickoff. Each exact hit = +2 pts, scored separately from your main prediction.",
             },
             {
+              q: "When do ET and penalties inputs appear?",
+              a: "Only if the match reaches them. ET shows up when it's level at 90′. Pens shows up if still level after ET. Nothing to set in advance.",
+            },
+            {
               q: "Does the bracket count toward my main score?",
               a: "No. Separate standings, separate contest.",
             },
