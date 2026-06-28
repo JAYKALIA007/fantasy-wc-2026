@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FLAG_EMOJI } from "@/lib/utils/flags";
+import { toISTWithDay } from "@/lib/utils/date";
 
 type Nation = { id: number; name: string; fifa_ranking: number | null };
 
@@ -76,7 +77,7 @@ export default function RedraftClient({
     );
   }
 
-  const closeLabel = closesAt ? new Date(closesAt).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }) : null;
+  const closeLabel = closesAt ? toISTWithDay(closesAt) : null;
 
   return (
     <div style={wrap}>
@@ -134,6 +135,9 @@ export default function RedraftClient({
             <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 22, color: totalCost > 0 ? "var(--r2)" : "var(--g2)" }}>{totalCost > 0 ? `−${totalCost} pts` : "Free"}</span>
           </div>
           {error && <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--r2)", marginTop: 12 }}>{error}</p>}
+          <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: "12px 0 0", lineHeight: 1.5 }}>
+            ↻ You can come back and change your teams as many times as you like until the window closes{closeLabel ? ` (${closeLabel})` : ""}. Only your final pick counts — swapping back to a team you already had costs nothing.
+          </p>
         </div>
       )}
 

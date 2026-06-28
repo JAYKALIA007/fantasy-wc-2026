@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { toISTWithDay } from "@/lib/utils/date";
 
 interface LeagueMember {
   id: string;
@@ -1066,7 +1067,7 @@ export function AdminClient({
             <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 14, color: redraftWindow?.status === "open" ? "var(--g0)" : "var(--n5)" }}>
               {redraftWindow?.status === "open"
                 ? redraftWindow.closes_at
-                  ? `Open · closes ${formatDate(redraftWindow.closes_at)}`
+                  ? `Open · closes ${toISTWithDay(redraftWindow.closes_at)}`
                   : "Open"
                 : "Currently closed"}
             </span>
