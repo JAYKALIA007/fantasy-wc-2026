@@ -101,36 +101,36 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
   });
 
   // ── Live checkpoint reveals ────────────────────────────────────────────────
-  // Show each player's checkpoint pick, but only for phases that are LOCKED
-  // (closed/scored) — open windows stay hidden so picks can't be copied live.
+  // Each player's checkpoint picks are folded into their own card, but only for
+  // phases that are LOCKED (closed/scored) — open windows stay hidden so picks
+  // can't be copied live. (RLS also withholds others' picks until close.)
   const PHASE_ORDER: { phase: string; label: string }[] = [
-    { phase: "h1", label: "Half-time" },
-    { phase: "h2", label: "Full-time (90')" },
-    { phase: "et", label: "Extra time" },
-    { phase: "pens", label: "Penalties" },
+    { phase: "h1", label: "HT" },
+    { phase: "h2", label: "90'" },
+    { phase: "et", label: "ET" },
+    { phase: "pens", label: "PEN" },
   ];
   type CpPhase = { phase: string; status: string; actual_home: number | null; actual_away: number | null };
   type CpPick = { user_id: string; phase: string; predicted_home: number; predicted_away: number; points: number | null };
   const cpPhaseMap = new Map<string, CpPhase>();
   for (const p of (cpPhasesResult.data ?? []) as CpPhase[]) cpPhaseMap.set(p.phase, p);
-  const cpPicks = (cpPicksResult.data ?? []) as CpPick[];
 
-  const checkpointSections = PHASE_ORDER
-    .map(({ phase, label }) => cpPhaseMap.get(phase) && { def: { phase, label }, state: cpPhaseMap.get(phase)! })
-    .filter((s): s is { def: { phase: string; label: string }; state: CpPhase } =>
-      Boolean(s) && ["closed", "scored"].includes(s!.state.status))
-    .map(({ def, state }) => {
-      const picksForPhase = new Map<string, CpPick>();
-      for (const pk of cpPicks) if (pk.phase === def.phase) picksForPhase.set(pk.user_id, pk);
-      const phaseRows = Array.from(memberMap.entries())
-        .map(([userId, name]) => ({ userId, name, isMe: userId === user.id, pick: picksForPhase.get(userId) ?? null }))
-        .sort((a, b) => {
-          if (a.isMe) return -1;
-          if (b.isMe) return 1;
-          return (b.pick?.points ?? -1) - (a.pick?.points ?? -1);
-        });
-      return { ...def, state, rows: phaseRows };
-    });
+  // Locked phases, in match order — these are the columns shown on every card.
+  const lockedPhases = PHASE_ORDER
+    .map((def) => ({ def, state: cpPhaseMap.get(def.phase) }))
+    .filter((p): p is { def: { phase: string; label: string }; state: CpPhase } =>
+      Boolean(p.state) && ["closed", "scored"].includes(p.state!.status))
+    .map((p) => p.state.status === "scored" && p.state.actual_home != null
+      ? { ...p, result: `${p.state.actual_home}–${p.state.actual_away}` }
+      : { ...p, result: null as string | null });
+
+  // userId → phase → that player's pick (locked phases only).
+  const cpByUser = new Map<string, Map<string, CpPick>>();
+  for (const pk of (cpPicksResult.data ?? []) as CpPick[]) {
+    if (!cpPhaseMap.get(pk.phase) || !["closed", "scored"].includes(cpPhaseMap.get(pk.phase)!.status)) continue;
+    if (!cpByUser.has(pk.user_id)) cpByUser.set(pk.user_id, new Map());
+    cpByUser.get(pk.user_id)!.set(pk.phase, pk);
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", backgroundColor: "var(--bg)" }}>
@@ -188,12 +188,25 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
           {rows.filter(r => r.pred).length} of {rows.length} members predicted
         </div>
 
+        {/* Checkpoint results legend — actual score for each locked phase, once */}
+        {lockedPhases.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 6 }}>
+            {lockedPhases.map((lp) => (
+              <span key={lp.def.phase} style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n5)" }}>
+                <b style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, color: "var(--n4)" }}>{lp.def.label}</b>{" "}
+                {lp.result ? <span style={{ color: "var(--g2)", fontWeight: 700 }}>{lp.result}</span> : "awaiting"}
+              </span>
+            ))}
+          </div>
+        )}
+
         {rows.map((row) => {
           const outcome = isFinished && row.pred && match.home_score != null && match.away_score != null
             ? getOutcome(row.pred.predicted_home_score, row.pred.predicted_away_score, match.home_score as number, match.away_score as number)
             : null;
           const outcomeBg = outcome === "exact" ? "rgba(0,184,92,0.1)" : outcome === "result" ? "rgba(240,192,64,0.1)" : outcome === "miss" ? "rgba(226,59,72,0.07)" : row.isMe ? "rgba(0,184,92,0.07)" : "var(--surf)";
           const outcomeBorder = outcome === "exact" ? "1px solid rgba(0,184,92,0.25)" : outcome === "result" ? "1px solid rgba(240,192,64,0.25)" : outcome === "miss" ? "1px solid rgba(226,59,72,0.15)" : row.isMe ? "1px solid rgba(0,184,92,0.2)" : "none";
+          const myCp = cpByUser.get(row.userId);
           return (
           <div
             key={row.userId}
@@ -204,101 +217,74 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
               boxShadow: "var(--sh-sm)",
               border: outcomeBorder,
               display: "flex",
-              alignItems: "center",
-              gap: 10,
+              flexDirection: "column",
+              gap: 8,
             }}
           >
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: row.isMe ? 700 : 600, fontSize: 14, color: "var(--n0)" }}>
-                  {row.name}
-                </span>
-                {row.isMe && (
-                  <span style={{ fontFamily: "var(--font-saira), sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", color: "var(--g2)" }}>
-                    you
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: row.isMe ? 700 : 600, fontSize: 14, color: "var(--n0)" }}>
+                    {row.name}
                   </span>
-                )}
+                  {row.isMe && (
+                    <span style={{ fontFamily: "var(--font-saira), sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", color: "var(--g2)" }}>
+                      you
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {row.pred ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                  <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 18, color: "var(--n0)", letterSpacing: 1 }}>
+                    {row.pred.predicted_home_score} – {row.pred.predicted_away_score}
+                  </span>
+                  {isFinished && outcome && (
+                    <span style={{
+                      fontFamily: "var(--font-saira), sans-serif",
+                      fontWeight: 700,
+                      fontSize: 10,
+                      letterSpacing: 0.8,
+                      textTransform: "uppercase",
+                      color: outcome === "exact" ? "var(--g3)" : outcome === "result" ? "#f0c040" : "var(--r3)",
+                    }}>
+                      {outcome === "exact" ? "⚽ Exact" : outcome === "result" ? "✓ Result" : "✗ Miss"}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n6)", fontStyle: "italic" }}>
+                  No pick
+                </span>
+              )}
             </div>
 
-            {row.pred ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 18, color: "var(--n0)", letterSpacing: 1 }}>
-                  {row.pred.predicted_home_score} – {row.pred.predicted_away_score}
-                </span>
-                {isFinished && outcome && (
-                  <span style={{
-                    fontFamily: "var(--font-saira), sans-serif",
-                    fontWeight: 700,
-                    fontSize: 10,
-                    letterSpacing: 0.8,
-                    textTransform: "uppercase",
-                    color: outcome === "exact" ? "var(--g3)" : outcome === "result" ? "#f0c040" : "var(--r3)",
-                  }}>
-                    {outcome === "exact" ? "⚽ Exact" : outcome === "result" ? "✓ Result" : "✗ Miss"}
-                  </span>
-                )}
-              </div>
-            ) : (
-              <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n6)", fontStyle: "italic" }}>
-                No pick
-              </span>
-            )}
-          </div>
-          );
-        })}
-
-        {/* Live checkpoint reveals — only phases whose window has locked */}
-        {checkpointSections.map((section) => {
-          const isScored = section.state.status === "scored";
-          const actual = isScored && section.state.actual_home != null
-            ? `${section.state.actual_home}–${section.state.actual_away}`
-            : null;
-          return (
-            <div key={section.phase} style={{ marginTop: 18 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 12, color: "var(--n0)", textTransform: "uppercase", letterSpacing: 0.8 }}>
-                  {section.label} predictions
-                </span>
-                {actual ? (
-                  <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12, color: "var(--g3)" }}>
-                    Result {actual}
-                  </span>
-                ) : (
-                  <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n5)" }}>
-                    awaiting result
-                  </span>
-                )}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {section.rows.map((r) => {
-                  const correct = isScored && (r.pick?.points ?? 0) > 0;
+            {/* Checkpoint picks — only locked phases, folded into the same card */}
+            {lockedPhases.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, borderTop: "1px solid rgba(14,23,38,0.06)", paddingTop: 8 }}>
+                {lockedPhases.map((lp) => {
+                  const pick = myCp?.get(lp.def.phase) ?? null;
+                  const scored = lp.state.status === "scored";
+                  const correct = scored && (pick?.points ?? 0) > 0;
                   return (
-                    <div key={r.userId} style={{
-                      background: correct ? "rgba(0,184,92,0.1)" : r.isMe ? "rgba(0,184,92,0.07)" : "var(--surf)",
-                      border: correct ? "1px solid rgba(0,184,92,0.25)" : r.isMe ? "1px solid rgba(0,184,92,0.2)" : "none",
-                      borderRadius: 10, padding: "9px 12px", display: "flex", alignItems: "center", gap: 10,
+                    <span key={lp.def.phase} style={{
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                      padding: "3px 8px", borderRadius: 7,
+                      background: correct ? "rgba(0,184,92,0.15)" : "rgba(14,23,38,0.05)",
+                      fontFamily: "var(--font-inter), sans-serif", fontSize: 11,
                     }}>
-                      <span style={{ flex: 1, fontFamily: "var(--font-saira), sans-serif", fontWeight: r.isMe ? 700 : 600, fontSize: 13, color: "var(--n0)" }}>
-                        {r.name}{r.isMe ? " · you" : ""}
+                      <b style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, color: correct ? "var(--g2)" : "var(--n5)", letterSpacing: 0.3 }}>{lp.def.label}</b>
+                      <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, color: pick ? "var(--n0)" : "var(--n6)" }}>
+                        {pick ? `${pick.predicted_home}–${pick.predicted_away}` : "—"}
                       </span>
-                      {r.pick ? (
-                        <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 15, color: "var(--n0)", letterSpacing: 0.5 }}>
-                          {r.pick.predicted_home}–{r.pick.predicted_away}
-                        </span>
-                      ) : (
-                        <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n6)", fontStyle: "italic" }}>No pick</span>
-                      )}
-                      {isScored && r.pick && (
-                        <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 12, width: 24, textAlign: "right", color: correct ? "var(--g3)" : "var(--n6)" }}>
-                          {correct ? `+${r.pick.points}` : "0"}
-                        </span>
-                      )}
-                    </div>
+                      {correct && <span style={{ color: "var(--g3)", fontWeight: 800 }}>+{pick!.points}</span>}
+                    </span>
                   );
                 })}
               </div>
-            </div>
+            )}
+          </div>
           );
         })}
       </div>
