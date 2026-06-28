@@ -22,7 +22,7 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
   const leagueId = membership.league_id as string;
   const matchIdNum = parseInt(matchId, 10);
 
-  const [matchResult, predictionsResult, membersResult, leagueResult] = await Promise.all([
+  const [matchResult, predictionsResult, membersResult, leagueResult, cpPhasesResult, cpPicksResult] = await Promise.all([
     supabase
       .from("matches")
       .select("id, kickoff_time, status, home_score, away_score, group_label, home_nation:home_nation_id(name, flag_code), away_nation:away_nation_id(name, flag_code)")
@@ -42,6 +42,19 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
       .select("creator_id")
       .eq("id", leagueId)
       .maybeSingle(),
+    // Checkpoint phase state for this match (drives which reveals are unlocked).
+    supabase
+      .from("match_checkpoint_phases")
+      .select("phase, status, actual_home, actual_away")
+      .eq("match_id", matchIdNum),
+    // Everyone's checkpoint picks. RLS returns the viewer's own picks for every
+    // phase, but other players' picks only once that phase is closed/scored — so
+    // the privacy gate is enforced at the DB, not just here.
+    supabase
+      .from("live_checkpoint_predictions")
+      .select("user_id, phase, predicted_home, predicted_away, points")
+      .eq("match_id", matchIdNum)
+      .eq("league_id", leagueId),
   ]);
 
   const match = matchResult.data;
@@ -86,6 +99,38 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
     const bp = b.pred?.points ?? -1;
     return bp - ap;
   });
+
+  // ── Live checkpoint reveals ────────────────────────────────────────────────
+  // Show each player's checkpoint pick, but only for phases that are LOCKED
+  // (closed/scored) — open windows stay hidden so picks can't be copied live.
+  const PHASE_ORDER: { phase: string; label: string }[] = [
+    { phase: "h1", label: "Half-time" },
+    { phase: "h2", label: "Full-time (90')" },
+    { phase: "et", label: "Extra time" },
+    { phase: "pens", label: "Penalties" },
+  ];
+  type CpPhase = { phase: string; status: string; actual_home: number | null; actual_away: number | null };
+  type CpPick = { user_id: string; phase: string; predicted_home: number; predicted_away: number; points: number | null };
+  const cpPhaseMap = new Map<string, CpPhase>();
+  for (const p of (cpPhasesResult.data ?? []) as CpPhase[]) cpPhaseMap.set(p.phase, p);
+  const cpPicks = (cpPicksResult.data ?? []) as CpPick[];
+
+  const checkpointSections = PHASE_ORDER
+    .map(({ phase, label }) => cpPhaseMap.get(phase) && { def: { phase, label }, state: cpPhaseMap.get(phase)! })
+    .filter((s): s is { def: { phase: string; label: string }; state: CpPhase } =>
+      Boolean(s) && ["closed", "scored"].includes(s!.state.status))
+    .map(({ def, state }) => {
+      const picksForPhase = new Map<string, CpPick>();
+      for (const pk of cpPicks) if (pk.phase === def.phase) picksForPhase.set(pk.user_id, pk);
+      const phaseRows = Array.from(memberMap.entries())
+        .map(([userId, name]) => ({ userId, name, isMe: userId === user.id, pick: picksForPhase.get(userId) ?? null }))
+        .sort((a, b) => {
+          if (a.isMe) return -1;
+          if (b.isMe) return 1;
+          return (b.pick?.points ?? -1) - (a.pick?.points ?? -1);
+        });
+      return { ...def, state, rows: phaseRows };
+    });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", backgroundColor: "var(--bg)" }}>
@@ -200,6 +245,60 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
               </span>
             )}
           </div>
+          );
+        })}
+
+        {/* Live checkpoint reveals — only phases whose window has locked */}
+        {checkpointSections.map((section) => {
+          const isScored = section.state.status === "scored";
+          const actual = isScored && section.state.actual_home != null
+            ? `${section.state.actual_home}–${section.state.actual_away}`
+            : null;
+          return (
+            <div key={section.phase} style={{ marginTop: 18 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 12, color: "var(--n0)", textTransform: "uppercase", letterSpacing: 0.8 }}>
+                  {section.label} predictions
+                </span>
+                {actual ? (
+                  <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12, color: "var(--g3)" }}>
+                    Result {actual}
+                  </span>
+                ) : (
+                  <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n5)" }}>
+                    awaiting result
+                  </span>
+                )}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {section.rows.map((r) => {
+                  const correct = isScored && (r.pick?.points ?? 0) > 0;
+                  return (
+                    <div key={r.userId} style={{
+                      background: correct ? "rgba(0,184,92,0.1)" : r.isMe ? "rgba(0,184,92,0.07)" : "var(--surf)",
+                      border: correct ? "1px solid rgba(0,184,92,0.25)" : r.isMe ? "1px solid rgba(0,184,92,0.2)" : "none",
+                      borderRadius: 10, padding: "9px 12px", display: "flex", alignItems: "center", gap: 10,
+                    }}>
+                      <span style={{ flex: 1, fontFamily: "var(--font-saira), sans-serif", fontWeight: r.isMe ? 700 : 600, fontSize: 13, color: "var(--n0)" }}>
+                        {r.name}{r.isMe ? " · you" : ""}
+                      </span>
+                      {r.pick ? (
+                        <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 15, color: "var(--n0)", letterSpacing: 0.5 }}>
+                          {r.pick.predicted_home}–{r.pick.predicted_away}
+                        </span>
+                      ) : (
+                        <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n6)", fontStyle: "italic" }}>No pick</span>
+                      )}
+                      {isScored && r.pick && (
+                        <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 12, width: 24, textAlign: "right", color: correct ? "var(--g3)" : "var(--n6)" }}>
+                          {correct ? `+${r.pick.points}` : "0"}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
       </div>

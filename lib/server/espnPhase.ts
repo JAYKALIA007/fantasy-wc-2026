@@ -17,7 +17,9 @@ export type MatchStage =
   | "first_half" // 1st half in progress
   | "halftime" // half-time break — the moment the h1 (HT) score is final
   | "second_half" // 2nd half in progress
+  | "end_regulation" // 90' over AND level → heading to extra time (et opens here)
   | "extra_time" // extra time in progress
+  | "end_et" // 120' over AND level → heading to penalties (pens opens here)
   | "shootout" // penalty shootout in progress
   | "complete"; // match over (regulation, ET, or pens)
 
@@ -65,6 +67,16 @@ function hasKeyword(t: EspnStatusType | undefined, kw: string): boolean {
   return blob.includes(kw);
 }
 
+// Exact-token match on the short status fields — ESPN often abbreviates the live
+// break states (e.g. detail/shortDetail = "HT" at half-time, "FT" at full-time),
+// which a loose substring search would miss or mis-hit.
+function isExactStatus(t: EspnStatusType | undefined, token: string): boolean {
+  if (!t) return false;
+  const d = (t.detail ?? "").trim().toLowerCase();
+  const s = (t.shortDetail ?? "").trim().toLowerCase();
+  return d === token || s === token;
+}
+
 // Returns null if the competition payload is unusable (missing competitors).
 export function mapEspnCompetition(comp: EspnCompetitionLike): DetectedState | null {
   const competitors = comp.competitors ?? [];
@@ -94,13 +106,36 @@ export function mapEspnCompetition(comp: EspnCompetitionLike): DetectedState | n
     // No ET played → the final score IS the 90' (h2) boundary.
     decidedInRegulation = (period || 0) <= 2 && shootoutHome == null && shootoutAway == null;
   } else {
-    // In progress — disambiguate by description first (halftime break), then period.
-    if (hasKeyword(type, "halftime") || hasKeyword(type, "half-time") || hasKeyword(type, "half time")) {
+    // In progress — disambiguate by description/period. The end-of-phase "break"
+    // states (end_regulation, end_et) require the match to be LEVEL and carry an
+    // end/full-time keyword, so normal in-play never trips them.
+    const level = h === a;
+    const halftime =
+      hasKeyword(type, "halftime") ||
+      hasKeyword(type, "half-time") ||
+      hasKeyword(type, "half time") ||
+      isExactStatus(type, "ht");
+    const shootout = period >= 5 || hasKeyword(type, "shootout") || hasKeyword(type, "penalt");
+    const extra = period === 3 || period === 4 || hasKeyword(type, "extra");
+    // "End of <phase>" markers ESPN shows during the break before ET / pens.
+    const endMarker =
+      hasKeyword(type, "end of") ||
+      hasKeyword(type, "full time") ||
+      hasKeyword(type, "full-time") ||
+      hasKeyword(type, "regulation") ||
+      hasKeyword(type, "aet") ||
+      isExactStatus(type, "ft");
+
+    if (halftime) {
       stage = "halftime";
-    } else if (period >= 5 || hasKeyword(type, "shootout") || hasKeyword(type, "penalties")) {
+    } else if (shootout) {
       stage = "shootout";
-    } else if (period === 3 || period === 4 || hasKeyword(type, "extra")) {
+    } else if (level && period === 4 && endMarker) {
+      stage = "end_et"; // 120' done, still level → penalties next
+    } else if (extra) {
       stage = "extra_time";
+    } else if (level && period === 2 && endMarker) {
+      stage = "end_regulation"; // 90' done, still level → extra time next
     } else if (period === 2) {
       stage = "second_half";
     } else {

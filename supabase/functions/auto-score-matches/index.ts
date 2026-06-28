@@ -109,7 +109,7 @@ function findCompetition(events: EspnEvent[], espnHome: string, espnAway: string
 // copy must stay behaviourally identical). Keep changes in lockstep.
 // ─────────────────────────────────────────────────────────────────────────────
 
-type MatchStage = "pre" | "first_half" | "halftime" | "second_half" | "extra_time" | "shootout" | "complete";
+type MatchStage = "pre" | "first_half" | "halftime" | "second_half" | "end_regulation" | "extra_time" | "end_et" | "shootout" | "complete";
 type Phase = "h1" | "h2" | "et" | "pens";
 type PhaseStatus = "pending" | "open" | "closed" | "scored";
 
@@ -140,6 +140,12 @@ function hasKw(t: { description?: string; detail?: string; shortDetail?: string 
   return blob.includes(kw);
 }
 
+function isExactStatus(t: { detail?: string; shortDetail?: string }, token: string): boolean {
+  const d = (t.detail ?? "").trim().toLowerCase();
+  const s = (t.shortDetail ?? "").trim().toLowerCase();
+  return d === token || s === token;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapEspnCompetition(comp: any): DetectedState | null {
   const competitors = comp.competitors ?? [];
@@ -166,12 +172,24 @@ function mapEspnCompetition(comp: any): DetectedState | null {
     stage = "complete";
     decidedInRegulation = (period || 0) <= 2 && shootoutHome == null && shootoutAway == null;
   } else {
-    if (hasKw(type, "halftime") || hasKw(type, "half-time") || hasKw(type, "half time")) {
+    const level = h === a;
+    const halftime = hasKw(type, "halftime") || hasKw(type, "half-time") || hasKw(type, "half time") || isExactStatus(type, "ht");
+    const shootout = period >= 5 || hasKw(type, "shootout") || hasKw(type, "penalt");
+    const extra = period === 3 || period === 4 || hasKw(type, "extra");
+    const endMarker =
+      hasKw(type, "end of") || hasKw(type, "full time") || hasKw(type, "full-time") ||
+      hasKw(type, "regulation") || hasKw(type, "aet") || isExactStatus(type, "ft");
+
+    if (halftime) {
       stage = "halftime";
-    } else if (period >= 5 || hasKw(type, "shootout") || hasKw(type, "penalties")) {
+    } else if (shootout) {
       stage = "shootout";
-    } else if (period === 3 || period === 4 || hasKw(type, "extra")) {
+    } else if (level && period === 4 && endMarker) {
+      stage = "end_et";
+    } else if (extra) {
       stage = "extra_time";
+    } else if (level && period === 2 && endMarker) {
+      stage = "end_regulation";
     } else if (period === 2) {
       stage = "second_half";
     } else {
@@ -216,12 +234,23 @@ function computePhaseTransitions(stored: StoredPhase[], detected: DetectedState)
       close("h1");
       close("h2");
       break;
-    case "extra_time":
+    case "end_regulation":
+      // 90' over and level → going to ET. Snapshot 90' boundary, open et.
+      close("h2");
       score("h2", home, away);
+      if (home === away) open("et", true);
+      break;
+    case "extra_time":
+      score("h2", home, away); // recovery if end_regulation was missed
       close("et");
       break;
-    case "shootout":
+    case "end_et":
+      // 120' over and level → going to pens. Snapshot 120' boundary, open pens.
       score("et", home, away);
+      if (home === away) open("pens", true);
+      break;
+    case "shootout":
+      score("et", home, away); // recovery if end_et was missed
       close("pens");
       break;
     case "complete":

@@ -81,6 +81,42 @@ describe("mapEspnCompetition", () => {
     expect(r.shootoutAway).toBe(3);
   });
 
+  it("half-time detected by abbreviated detail 'HT' → halftime", () => {
+    const r = mapEspnCompetition({
+      competitors: [
+        { homeAway: "home", score: 0 },
+        { homeAway: "away", score: 0 },
+      ],
+      status: { type: { state: "in", completed: false, description: "", detail: "HT", shortDetail: "HT" }, period: 1 },
+    })!;
+    expect(r.stage).toBe("halftime");
+  });
+
+  it("end of regulation, level → end_regulation", () => {
+    const r = mapEspnCompetition(comp({ state: "in", description: "End of Regulation", period: 2, homeScore: 1, awayScore: 1 }))!;
+    expect(r.stage).toBe("end_regulation");
+  });
+
+  it("end of regulation but NOT level → stays second_half (no et)", () => {
+    const r = mapEspnCompetition(comp({ state: "in", description: "Full Time", period: 2, homeScore: 2, awayScore: 1 }))!;
+    expect(r.stage).toBe("second_half");
+  });
+
+  it("normal 2nd-half play (level, no end marker) → second_half", () => {
+    const r = mapEspnCompetition(comp({ state: "in", description: "2nd Half", period: 2, homeScore: 1, awayScore: 1 }))!;
+    expect(r.stage).toBe("second_half");
+  });
+
+  it("end of extra time, level → end_et", () => {
+    const r = mapEspnCompetition(comp({ state: "in", description: "End of Extra Time", period: 4, homeScore: 2, awayScore: 2 }))!;
+    expect(r.stage).toBe("end_et");
+  });
+
+  it("normal extra-time play (period 3) → extra_time, not end_et", () => {
+    const r = mapEspnCompetition(comp({ state: "in", description: "1st Half Extra Time", period: 3, homeScore: 1, awayScore: 1 }))!;
+    expect(r.stage).toBe("extra_time");
+  });
+
   it("missing competitors → null", () => {
     expect(mapEspnCompetition({ competitors: [], status: { type: { state: "in" } } })).toBeNull();
   });

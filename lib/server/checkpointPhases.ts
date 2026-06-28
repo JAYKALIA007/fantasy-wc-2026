@@ -13,10 +13,11 @@
 //   pens predicts the shootout tally; opens at end of ET ONLY if level, closes
 //       at shootout start, boundary = the final shootout tally.
 //
-// et/pens are created lazily (here, opening is admin-driven in practice; the
-// machine handles closing + scoring them once the match reaches those stages).
-// All transitions are idempotent: an action is emitted only when it changes the
-// stored status, so re-running with the same detected state is a no-op.
+// et/pens are created lazily: they auto-open when ESPN surfaces the end-of-90'
+// / end-of-ET break with the match still level (admin "Open" stays as a backup
+// if ESPN never exposes that brief break state). All transitions are idempotent:
+// an action is emitted only when it changes the stored status, so re-running with
+// the same detected state is a no-op.
 
 import type { DetectedState } from "./espnPhase";
 import { scoreLiveCheckpoint } from "./liveCheckpoint";
@@ -85,16 +86,34 @@ export function computePhaseTransitions(
       close("h2"); // recovery net — lock the 90' window if halftime was missed
       break;
 
+    case "end_regulation":
+      // 90' over and the match is LEVEL → going to extra time. Snapshot the 90'
+      // (h2) boundary and open the et window so players predict the 120' score
+      // BEFORE extra time is played. Admin "Open et" remains the backup if ESPN
+      // never surfaces this break state.
+      close("h2"); // no-op if already locked at half-time
+      score("h2", home, away); // 90' boundary is final now
+      if (home === away) open("et", true); // live window → push
+      break;
+
     case "extra_time":
-      // Best-effort: at ET start the cumulative score == the 90' score.
+      // Best-effort recovery: if end_regulation was missed, the cumulative score
+      // at ET start still ≈ the 90' score.
       score("h2", home, away);
-      close("et"); // ET started — close the et window if admin opened it
+      close("et"); // ET started — close the et window
+      break;
+
+    case "end_et":
+      // 120' over and still LEVEL → going to penalties. Snapshot the 120' (et)
+      // boundary and open the pens window before the shootout.
+      score("et", home, away); // 120' boundary is final now
+      if (home === away) open("pens", true); // live window → push
       break;
 
     case "shootout":
-      // Best-effort: at shootout start the cumulative score == the 120' score.
+      // Best-effort recovery: at shootout start the cumulative score == the 120'.
       score("et", home, away);
-      close("pens"); // shootout started — close the pens window if admin opened it
+      close("pens"); // shootout started — close the pens window
       break;
 
     case "complete":

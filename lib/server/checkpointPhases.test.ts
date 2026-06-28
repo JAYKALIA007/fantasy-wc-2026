@@ -89,6 +89,32 @@ describe("computePhaseTransitions", () => {
     expect(a.some((x) => x.phase === "h2")).toBe(false);
   });
 
+  it("end_regulation (level) scores h2 at 90' and opens et as a live window", () => {
+    const a = computePhaseTransitions(
+      [phase("h1", "scored"), phase("h2", "closed")],
+      detected({ stage: "end_regulation", home: 1, away: 1 })
+    );
+    expect(a).toContainEqual({ phase: "h2", status: "scored", actual_home: 1, actual_away: 1 });
+    expect(a).toContainEqual({ phase: "et", status: "open", opened: true });
+  });
+
+  it("end_et (level) scores et at 120' and opens pens as a live window", () => {
+    const a = computePhaseTransitions(
+      [phase("et", "closed")],
+      detected({ stage: "end_et", home: 2, away: 2 })
+    );
+    expect(a).toContainEqual({ phase: "et", status: "scored", actual_home: 2, actual_away: 2 });
+    expect(a).toContainEqual({ phase: "pens", status: "open", opened: true });
+  });
+
+  it("end_regulation does NOT open et if somehow not level (defensive guard)", () => {
+    const a = computePhaseTransitions(
+      [phase("h2", "closed")],
+      detected({ stage: "end_regulation", home: 2, away: 1 })
+    );
+    expect(a.some((x) => x.phase === "et" && x.status === "open")).toBe(false);
+  });
+
   it("shootout stage closes an open pens window and scores et", () => {
     const a = computePhaseTransitions(
       [phase("et", "closed"), phase("pens", "open")],
