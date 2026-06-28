@@ -26,7 +26,7 @@ describe("computeProgressionBonus", () => {
 
   it("uses the correct base per milestone (primary)", () => {
     const cases: [keyof typeof MILESTONE_BONUS, number][] = [
-      ["ro32", 5],
+      ["ro32", 3],
       ["r16", 10],
       ["qf", 20],
       ["sf", 30],

@@ -42,6 +42,9 @@ export default async function ProfilePage() {
   const myRank = myRow ? leaderboardRows.indexOf(myRow) + 1 : leaderboardRows.length + 1;
   const totalPlayers = leaderboardRows.length || 1;
   const nationBonus = myRow?.nation_bonus ?? 0;
+  const predictionPoints = myRow?.prediction_points ?? 0;
+  const progressionBonus = myRow?.progression_bonus ?? 0;
+  const swapPenalty = myRow?.swap_penalty ?? 0;
   const totalPoints = myRow?.total_points ?? 0;
 
   // Prediction stats — only kicked-off matches
@@ -93,6 +96,30 @@ export default async function ProfilePage() {
       </div>
 
       <div style={{ padding: "16px 16px 80px", display: "flex", flexDirection: "column", gap: 12 }}>
+
+        {/* Points breakdown */}
+        <div style={{ background: "var(--surf)", borderRadius: 14, padding: "16px", boxShadow: "var(--sh-sm)" }}>
+          <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 13, color: "var(--n0)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12 }}>
+            Points breakdown
+          </div>
+          {[
+            { label: "Predictions", value: predictionPoints },
+            { label: "Nation bonus", value: nationBonus },
+            { label: "Progression bonus", value: progressionBonus },
+            ...(swapPenalty > 0 ? [{ label: "Swap penalty", value: -swapPenalty }] : []),
+          ].map((r) => (
+            <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--n8)" }}>
+              <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 14, color: "var(--n4)" }}>{r.label}</span>
+              <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 15, color: r.value < 0 ? "var(--r2)" : "var(--n0)" }}>
+                {r.value < 0 ? `−${Math.abs(r.value)}` : `+${r.value}`}
+              </span>
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12 }}>
+            <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 14, color: "var(--n0)", textTransform: "uppercase", letterSpacing: 0.5 }}>Total</span>
+            <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 22, color: "var(--g2)" }}>{totalPoints}</span>
+          </div>
+        </div>
 
         {/* Prediction stats */}
         <div style={{ background: "var(--surf)", borderRadius: 14, padding: "16px", boxShadow: "var(--sh-sm)" }}>

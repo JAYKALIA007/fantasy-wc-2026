@@ -140,6 +140,19 @@ export default async function HomePage() {
   const isCreator = leagueData?.creator_id === user.id;
   const adminUserId = leagueData?.creator_id as string | null;
 
+  // RO32 re-draft nudge — show when the window is open for this league.
+  const RO32_ROUND_ID = "a0000000-0000-0000-0000-000000000003";
+  const { data: redraftWin } = await supabase
+    .from("redraft_windows")
+    .select("status, closes_at")
+    .eq("league_id", leagueId)
+    .eq("round_id", RO32_ROUND_ID)
+    .maybeSingle();
+  const redraftOpen =
+    !!redraftWin &&
+    redraftWin.status === "open" &&
+    (!redraftWin.closes_at || new Date() < new Date(redraftWin.closes_at as string));
+
   // All live matches (status=scheduled but past kickoff — scored by the edge function)
   const liveMatches: LiveMatch[] = (liveMatchesResult.data ?? []).map((raw) => ({
     id: raw.id as number,
@@ -398,6 +411,27 @@ export default async function HomePage() {
       </div>
 
       <div style={{ padding: "16px 16px 80px", display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* RO32 re-draft nudge */}
+        {redraftOpen && (
+          <Link
+            href="/redraft"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+              background: "var(--gbg)", border: "1.5px solid var(--g3)", borderRadius: 16,
+              padding: "16px", textDecoration: "none",
+            }}
+          >
+            <div>
+              <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 15, color: "var(--g2)", letterSpacing: 0.3 }}>
+                🔄 Re-draft open
+              </div>
+              <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--g2)", marginTop: 3, lineHeight: 1.4 }}>
+                Pick your Round of 32 teams{redraftWin?.closes_at ? ` · closes ${new Date(redraftWin.closes_at as string).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}` : ""}
+              </div>
+            </div>
+            <span style={{ color: "var(--g3)", fontSize: 22, flexShrink: 0 }}>›</span>
+          </Link>
+        )}
         {/* Matchday hero card — all matches in the next batch (same kickoff) in one card */}
         {nextBatch.length > 0 && (
           <div

@@ -2,6 +2,8 @@ import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import HistoryClient, { type PredictionRecord } from "@/app/(app)/predict/history/history-client";
 import type { NationRef } from "@/lib/types";
+import { computeLeaderboard } from "@/lib/server/leaderboard";
+import { ROUND_ID } from "@/lib/constants";
 
 export default async function PlayerPredictionsPage({
   params,
@@ -59,6 +61,20 @@ export default async function PlayerPredictionsPage({
     .eq("league_member_id", memberId);
 
   const nationBonus = (nationBonusRows ?? []).reduce((sum, r) => sum + (r.points as number), 0);
+
+  // Full points breakdown for this player (admin-excluded leaderboard math).
+  const { data: leagueRow } = await supabase.from("leagues").select("creator_id").eq("id", leagueId).single();
+  const leaderboardRows = await computeLeaderboard(supabase, leagueId, (leagueRow?.creator_id as string | null) ?? null, ROUND_ID);
+  const targetRow = leaderboardRows.find((r) => r.user_id === targetUserId);
+  const breakdown = targetRow
+    ? {
+        predictions: targetRow.prediction_points,
+        nationBonus: targetRow.nation_bonus,
+        progressionBonus: targetRow.progression_bonus,
+        swapPenalty: targetRow.swap_penalty,
+        total: targetRow.total_points,
+      }
+    : undefined;
 
   const nationBonusByMatch = new Map<number, number>();
   for (const row of (nationBonusRows ?? [])) {
@@ -136,6 +152,7 @@ export default async function PlayerPredictionsPage({
       nationBonus={nationBonus}
       primaryNation={primaryNation ?? undefined}
       secondaryNation={secondaryNation ?? undefined}
+      breakdown={breakdown}
     />
   );
 }

@@ -1,6 +1,6 @@
 # Knockout-Stage Team Reassignment — Spec
 
-**Status:** Design locked (grilled 2026-06-21). Not yet implemented.
+**Status:** Design locked (grilled 2026-06-21, updated 2026-06-28). Not yet implemented.
 **Context:** Group stage ends ~2026-06-30. This must ship before then.
 
 ---
@@ -46,19 +46,23 @@ impossible** from RO16 on (16 teams < 19 players) and breaks entirely by the QF
 
 | Board opens (entering) | Penalty |
 |---|---|
-| RO32 (re-draft) | primary **−5** / secondary **−3** |
+| RO32 (re-draft) | primary **−5** / secondary **free** |
 | RO16 | **−5** |
 | QF | **−8** |
 | SF | **−10** |
 | Final | **−12** |
 
-Only the single-team / primary swap escalates. The −3 secondary penalty exists
-only at the RO32 re-draft (secondary dissolves after RO32 — see §5).
+Secondary switch at RO32 is free — the re-draft is the one moment players can
+adjust their wildcard without cost. Only the primary swap at RO32 costs −5.
+From RO16 onward there is only one team, so only the primary escalating ladder
+applies.
 
 ### 4. Team pools
-- **RO32 re-draft:** primary chosen from the **top 10 surviving teams by FIFA
-  ranking**; secondary from the **other 22 survivors**. (Keeps the philosophy:
-  primary = favourite at 1×, secondary = underdog at 2×.)
+- **RO32 re-draft:** primary chosen from the **top 12 surviving teams by FIFA
+  ranking**; secondary from the **other 20 survivors**. (Keeps the philosophy:
+  primary = favourite at 1×, secondary = underdog at 2×.) Top 12 by actual
+  June 2026 rankings: Argentina, France, Spain, England, Brazil, Morocco,
+  Netherlands, Portugal, Mexico, Belgium, Colombia, Germany.
 - **RO16 onward:** any surviving team.
 
 ### 5. The collapse (RO32 → RO16)
@@ -73,17 +77,22 @@ only at the RO32 re-draft (secondary dissolves after RO32 — see §5).
 
 ### 6. Progression-bonus ladder
 
-| Milestone | Bonus |
+| Milestone | Bonus (base) |
 |---|---|
-| Reach RO32 (survive group) | **+5** |
+| Reach RO32 (survive group) | **+3** |
 | Reach RO16 | **+10** |
 | Reach QF | **+20** |
 | Reach SF | **+30** |
+| Win Bronze Final | **+35** |
 | Reach Final (runner-up) | **+40** |
 | Win the tournament | **+50** |
 
-Multipliers: **primary 1×, secondary 2×.** (Secondary only ever earns the RO16
-milestone, at 2× = +20, per §5.)
+Multipliers: **primary 1×, secondary 2×** (clean 2× across all milestones —
+RO32 is +3/+6, RO16 is +10/+20, etc.). A secondary earns exactly two things over
+its life: **reach-RO32 +6** (scored against the original onboarding secondary
+when the group stage ends) and the **reach-RO16 +20 farewell** (scored against
+the re-draft secondary at the collapse). It earns nothing in between, and
+dissolves after the collapse.
 
 ### 7. Bonus retention
 Bonuses already banked from a team **stay banked** when you swap away from it.
@@ -95,7 +104,7 @@ The swap penalty is the only cost; there is no clawback of past points.
 
 | Phase | Teams held | Swap cost | Scoring |
 |---|---|---|---|
-| **Group → RO32** (re-draft window) | pick primary (top 10) + secondary (22) | −5 / −3 | — |
+| **Group → RO32** (re-draft window) | pick primary (top 12) + secondary (20) | −5 / free | — |
 | **During RO32** | primary + secondary | — | reach-RO16: primary +10, secondary +20 (2×) |
 | **RO32 → RO16** (collapse) | → one team (pick if both survive) | free (forced) | secondary +20 farewell, then dissolves |
 | **RO16 → QF** | one team | −5 | reach-QF +20 |
@@ -157,6 +166,15 @@ filtering (top-10 / 22 at RO32), the penalty confirmation ("Swap to Argentina fo
 −8?"), and the collapse "pick which team to keep" prompt.
 
 ---
+
+## Related — bracket prediction contest (separate feature)
+A distinct side contest, NOT part of the re-draft: a page where each player
+predicts the **winner of all 16 RO32 matches** (who advances to the RO16) before
+the first RO32 match kicks off. Separate scoring from the bonus-team mechanic.
+- **Re-draft** = reassign your own bonus-scoring teams (this spec).
+- **Bracket** = predict which 16 teams advance; scored per correct call.
+Needs its own table (e.g. `ro32_bracket_picks`), a submission window closing at
+first kickoff, and a results view. To be specced separately.
 
 ## Deferred / not in scope
 - Auto-detecting eliminations from a feed (admin sets it manually for now).

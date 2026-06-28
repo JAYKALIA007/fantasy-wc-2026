@@ -79,6 +79,15 @@ export default async function AdminPage() {
     (w) => new Date(w.opens_at) <= now && new Date(w.closes_at) >= now
   );
 
+  // RO32 re-draft window for this league
+  const RO32_ROUND_ID = "a0000000-0000-0000-0000-000000000003";
+  const { data: redraftWindow } = await supabase
+    .from("redraft_windows")
+    .select("status, closes_at")
+    .eq("league_id", league.id as string)
+    .eq("round_id", RO32_ROUND_ID)
+    .maybeSingle();
+
   // inviteUrl is computed client-side in AdminClient using window.location.origin
   const inviteCodePath = `/join?code=${league.invite_code}`;
 
@@ -94,6 +103,8 @@ export default async function AdminPage() {
       members={members}
       activeWindow={activeWindow ?? null}
       r16RoundId={R16_ROUND_ID}
+      ro32RoundId={RO32_ROUND_ID}
+      redraftWindow={redraftWindow ? { status: redraftWindow.status as string, closes_at: (redraftWindow.closes_at as string | null) ?? null } : null}
       currentUserId={user.id}
       inviteUrl={inviteCodePath}
     />
