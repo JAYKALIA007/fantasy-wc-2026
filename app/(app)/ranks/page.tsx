@@ -44,7 +44,7 @@ export default async function RanksPage() {
     .select("id", { count: "exact", head: true })
     .eq("league_id", leagueId);
 
-  const rankRows = await computeLeaderboard(supabase, leagueId, adminUserId, ROUND_ID);
+  const rankRows = await computeLeaderboard(supabase, leagueId, adminUserId, null);
 
   const myRankRow = rankRows.find((r) => r.user_id === user.id);
   const myRank = myRankRow ? rankRows.indexOf(myRankRow) + 1 : null;

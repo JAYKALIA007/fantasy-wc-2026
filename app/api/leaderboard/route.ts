@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { ROUND_ID } from "@/lib/constants";
 import { computeLeaderboard, type LeaderboardRow } from "@/lib/server/leaderboard";
 
 export interface LeaderboardApiRow extends LeaderboardRow {
@@ -18,7 +17,8 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const roundId = searchParams.get("round_id") ?? ROUND_ID;
+  // No round_id → cumulative across all rounds; a round_id scopes to that round.
+  const roundId = searchParams.get("round_id");
 
   const { data: membership } = await supabase
     .from("league_members")

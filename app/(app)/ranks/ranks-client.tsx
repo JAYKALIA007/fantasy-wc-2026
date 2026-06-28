@@ -190,14 +190,15 @@ export default function RanksClient({
 
   const fetchLeaderboard = useCallback(async () => {
     try {
-      const res = await fetch(`/api/leaderboard?round_id=${encodeURIComponent(roundId)}`);
+      // No round_id → cumulative total across all rounds.
+      const res = await fetch(`/api/leaderboard`);
       if (!res.ok) return;
       const data = (await res.json()) as { rows: RankRow[] };
       if (data.rows) setRows(data.rows);
     } catch {
       // Keep showing last known rows on transient failures.
     }
-  }, [roundId]);
+  }, []);
 
   const scheduleRefresh = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);

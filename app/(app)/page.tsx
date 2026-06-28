@@ -7,7 +7,6 @@ import { Countdown } from "@/components/countdown";
 import { NotificationPrompt } from "@/components/notification-prompt";
 import { FLAG_EMOJI } from "@/lib/utils/flags";
 import { toIST, toISTWithDay } from "@/lib/utils/date";
-import { ROUND_ID } from "@/lib/constants";
 import type { Nation } from "@/lib/types";
 import { computeLeaderboard } from "@/lib/server/leaderboard";
 
@@ -153,6 +152,24 @@ export default async function HomePage() {
     redraftWin.status === "open" &&
     (!redraftWin.closes_at || new Date() < new Date(redraftWin.closes_at as string));
 
+  // RO32 bracket nudge — show until the bracket locks (first RO32 kickoff) if the
+  // player hasn't completed all 16 picks.
+  const [{ data: ro32Kickoffs }, { count: myBracketCount }] = await Promise.all([
+    supabase.from("matches").select("kickoff_time").eq("round_id", RO32_ROUND_ID).order("kickoff_time", { ascending: true }).limit(1),
+    supabase.from("ro32_bracket_picks").select("id", { count: "exact", head: true }).eq("league_id", leagueId).eq("user_id", user.id),
+  ]);
+  const bracketLockAt = ro32Kickoffs && ro32Kickoffs[0] ? (ro32Kickoffs[0].kickoff_time as string) : null;
+  const bracketLocked = bracketLockAt ? new Date() >= new Date(bracketLockAt) : true;
+  const myBracketPicks = myBracketCount ?? 0;
+  // Show while editable (submit/finish) OR after lock if they took part (view results).
+  const bracketShow = !!bracketLockAt && (!bracketLocked || myBracketPicks > 0);
+  const bracketTitle = bracketLocked ? "🏆 Bracket results" : myBracketPicks === 0 ? "🏆 Submit your bracket" : myBracketPicks < 16 ? "🏆 Finish your bracket" : "🏆 Bracket saved";
+  const bracketSub = bracketLocked
+    ? "See how your RO32 picks are doing"
+    : myBracketPicks < 16
+      ? `Pick who advances in all 16 ties${bracketLockAt ? ` · locks ${toISTWithDay(bracketLockAt)}` : ""}`
+      : `All 16 picked · edit anytime before lock${bracketLockAt ? ` (${toISTWithDay(bracketLockAt)})` : ""}`;
+
   // All live matches (status=scheduled but past kickoff — scored by the edge function)
   const liveMatches: LiveMatch[] = (liveMatchesResult.data ?? []).map((raw) => ({
     id: raw.id as number,
@@ -201,7 +218,7 @@ export default async function HomePage() {
   }));
 
   // Build leaderboard (same logic as /ranks) — canonical admin-excluded player set
-  const leaderboardRows = await computeLeaderboard(supabase, leagueId, adminUserId, ROUND_ID);
+  const leaderboardRows = await computeLeaderboard(supabase, leagueId, adminUserId, null);
   const competingPlayerCount = leaderboardRows.length;
 
   const recentMatchIds = recentMatches.map((m) => m.id);
@@ -430,6 +447,26 @@ export default async function HomePage() {
               </div>
             </div>
             <span style={{ color: "var(--g3)", fontSize: 22, flexShrink: 0 }}>›</span>
+          </Link>
+        )}
+        {bracketShow && (
+          <Link
+            href="/bracket"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+              background: "var(--surf)", border: "1.5px solid var(--n0)", borderRadius: 16,
+              padding: "16px", textDecoration: "none",
+            }}
+          >
+            <div>
+              <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 15, color: "var(--n0)", letterSpacing: 0.3 }}>
+                {bracketTitle}
+              </div>
+              <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", marginTop: 3, lineHeight: 1.4 }}>
+                {bracketSub}
+              </div>
+            </div>
+            <span style={{ color: "var(--n0)", fontSize: 22, flexShrink: 0 }}>›</span>
           </Link>
         )}
         {/* Matchday hero card — all matches in the next batch (same kickoff) in one card */}

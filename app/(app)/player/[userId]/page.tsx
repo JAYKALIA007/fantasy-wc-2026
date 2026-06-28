@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import HistoryClient, { type PredictionRecord } from "@/app/(app)/predict/history/history-client";
 import type { NationRef } from "@/lib/types";
 import { computeLeaderboard } from "@/lib/server/leaderboard";
-import { ROUND_ID } from "@/lib/constants";
 
 export default async function PlayerPredictionsPage({
   params,
@@ -64,7 +63,7 @@ export default async function PlayerPredictionsPage({
 
   // Full points breakdown for this player (admin-excluded leaderboard math).
   const { data: leagueRow } = await supabase.from("leagues").select("creator_id").eq("id", leagueId).single();
-  const leaderboardRows = await computeLeaderboard(supabase, leagueId, (leagueRow?.creator_id as string | null) ?? null, ROUND_ID);
+  const leaderboardRows = await computeLeaderboard(supabase, leagueId, (leagueRow?.creator_id as string | null) ?? null, null);
   const targetRow = leaderboardRows.find((r) => r.user_id === targetUserId);
   const breakdown = targetRow
     ? {
