@@ -16,10 +16,10 @@ describe("computeRedraft — RO32", () => {
     expect(r.holding.secondary_swapped).toBe(false);
   });
 
-  it("swaps primary — charges −5 once", () => {
+  it("swaps primary — charges −3 once", () => {
     const r = computeRedraft("ro32", baseline, { primary_nation_id: 5, secondary_nation_id: 20 }, pools);
     expect(r.ok).toBe(true);
-    expect(r.penalties).toEqual([{ pick_type: "primary", amount: 5 }]);
+    expect(r.penalties).toEqual([{ pick_type: "primary", amount: 3 }]);
     expect(r.holding.primary_swapped).toBe(true);
   });
 

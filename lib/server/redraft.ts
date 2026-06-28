@@ -6,12 +6,12 @@
 // times they fiddled. Re-submitting recomputes from scratch (the caller clears
 // and re-writes this round's swap_penalties), so it is idempotent.
 //
-// RO32 is the re-draft: two teams. Primary swap costs PENALTY.ro32 (−5);
+// RO32 is the re-draft: two teams. Primary swap costs PENALTY.ro32 (−3);
 // secondary switch is FREE (tracked but never charged). RO16 onward is a single
 // team on the escalating ladder. See docs/knockout-reassignment-spec.md §3.
 
 export const SWAP_PENALTY = {
-  ro32: 5, // primary only; secondary is free at RO32
+  ro32: 3, // primary only; secondary is free at RO32
   r16: 5,
   qf: 8,
   sf: 10,

@@ -4,7 +4,17 @@ interface MatchScoreBody {
   match_id: number;
   home_score: number;
   away_score: number;
+  advancer_nation_id?: number | null;
 }
+
+// Knockout round_id -> the eliminated_in_round tag set on the losing team.
+const ROUND_ELIM_TAG: Record<string, string> = {
+  "a0000000-0000-0000-0000-000000000003": "ro32",
+  "a0000000-0000-0000-0000-000000000002": "r16",
+  "a0000000-0000-0000-0000-000000000004": "qf",
+  "a0000000-0000-0000-0000-000000000005": "sf",
+  "a0000000-0000-0000-0000-000000000006": "final",
+};
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -23,7 +33,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { match_id, home_score, away_score } = body;
+  const { match_id, home_score, away_score, advancer_nation_id } = body;
 
   if (
     typeof match_id !== "number" ||
@@ -54,7 +64,7 @@ export async function POST(request: Request) {
   // Verify match exists and get nation IDs
   const { data: match, error: matchError } = await supabase
     .from("matches")
-    .select("id, status, home_nation_id, away_nation_id")
+    .select("id, status, round_id, home_nation_id, away_nation_id")
     .eq("id", match_id)
     .single();
 
@@ -70,6 +80,19 @@ export async function POST(request: Request) {
 
   if (updateError) {
     return Response.json({ error: updateError.message }, { status: 500 });
+  }
+
+  // Knockout: the admin picks who advanced; the other team is eliminated at this
+  // round. Drives bracket standings + progression bonuses. Idempotent — re-saving
+  // with a different advancer flips the elimination correctly.
+  const elimTag = ROUND_ELIM_TAG[match.round_id as string];
+  if (elimTag && typeof advancer_nation_id === "number") {
+    if (advancer_nation_id !== match.home_nation_id && advancer_nation_id !== match.away_nation_id) {
+      return Response.json({ error: "advancer_nation_id must be one of the two teams" }, { status: 400 });
+    }
+    const loserId = advancer_nation_id === match.home_nation_id ? match.away_nation_id : match.home_nation_id;
+    await supabase.from("nations").update({ eliminated: true, eliminated_in_round: elimTag }).eq("id", loserId);
+    await supabase.from("nations").update({ eliminated: false, eliminated_in_round: null }).eq("id", advancer_nation_id);
   }
 
   // Score all predictions for this match by fetching their IDs and calling score_prediction for each

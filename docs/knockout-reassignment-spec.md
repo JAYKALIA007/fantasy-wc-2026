@@ -46,14 +46,14 @@ impossible** from RO16 on (16 teams < 19 players) and breaks entirely by the QF
 
 | Board opens (entering) | Penalty |
 |---|---|
-| RO32 (re-draft) | primary **−5** / secondary **free** |
+| RO32 (re-draft) | primary **−3** / secondary **free** |
 | RO16 | **−5** |
 | QF | **−8** |
 | SF | **−10** |
 | Final | **−12** |
 
 Secondary switch at RO32 is free — the re-draft is the one moment players can
-adjust their wildcard without cost. Only the primary swap at RO32 costs −5.
+adjust their wildcard without cost. Only the primary swap at RO32 costs −3.
 From RO16 onward there is only one team, so only the primary escalating ladder
 applies.
 
@@ -104,7 +104,7 @@ The swap penalty is the only cost; there is no clawback of past points.
 
 | Phase | Teams held | Swap cost | Scoring |
 |---|---|---|---|
-| **Group → RO32** (re-draft window) | pick primary (top 12) + secondary (20) | −5 / free | — |
+| **Group → RO32** (re-draft window) | pick primary (top 12) + secondary (20) | −3 / free | — |
 | **During RO32** | primary + secondary | — | reach-RO16: primary +10, secondary +20 (2×) |
 | **RO32 → RO16** (collapse) | → one team (pick if both survive) | free (forced) | secondary +20 farewell, then dissolves |
 | **RO16 → QF** | one team | −5 | reach-QF +20 |
