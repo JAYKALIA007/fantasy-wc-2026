@@ -6,7 +6,7 @@ import type { CardType } from "@/components/fifa-card";
 import { Countdown } from "@/components/countdown";
 import { NotificationPrompt } from "@/components/notification-prompt";
 import { FLAG_EMOJI } from "@/lib/utils/flags";
-import { toIST } from "@/lib/utils/date";
+import { toIST, toISTWithDay } from "@/lib/utils/date";
 import { ROUND_ID } from "@/lib/constants";
 import type { Nation } from "@/lib/types";
 import { computeLeaderboard } from "@/lib/server/leaderboard";
@@ -426,7 +426,7 @@ export default async function HomePage() {
                 🔄 Re-draft open
               </div>
               <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--g2)", marginTop: 3, lineHeight: 1.4 }}>
-                Pick your Round of 32 teams{redraftWin?.closes_at ? ` · closes ${new Date(redraftWin.closes_at as string).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}` : ""}
+                Pick your Round of 32 teams{redraftWin?.closes_at ? ` · closes ${toISTWithDay(redraftWin.closes_at as string)}` : ""}
               </div>
             </div>
             <span style={{ color: "var(--g3)", fontSize: 22, flexShrink: 0 }}>›</span>
