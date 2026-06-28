@@ -325,6 +325,25 @@ export default function RanksClient({
           gap: 12,
         }}
       >
+        <Link
+          href="/bracket"
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+            background: "var(--surf)", border: "1.5px solid var(--n0)", borderRadius: 14,
+            padding: "13px 14px", textDecoration: "none",
+          }}
+        >
+          <div>
+            <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 14, color: "var(--n0)", letterSpacing: 0.3 }}>
+              🏆 Bracket contest
+            </div>
+            <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", marginTop: 2 }}>
+              Who advances — separate standings
+            </div>
+          </div>
+          <span style={{ color: "var(--n0)", fontSize: 20, flexShrink: 0 }}>›</span>
+        </Link>
+
         <RankList rows={rows} currentUserId={currentUserId} />
 
         <div

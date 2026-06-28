@@ -104,11 +104,12 @@ export default async function PredictPage() {
     .or(`and(status.eq.scheduled,kickoff_time.gt.${now},kickoff_time.lte.${cutoff}),and(allow_late_predictions.eq.true,prediction_deadline.gt.${now},status.neq.finished)`)
     .order("kickoff_time", { ascending: true });
 
-  const matches: Match[] = (matchesRaw ?? []).map(mapMatch);
+  let matches: Match[] = (matchesRaw ?? []).map(mapMatch);
 
-  // Keep live knockout matches visible: any match with an OPEN checkpoint phase
-  // must show on /predict even after kickoff (when it would otherwise drop off),
-  // so players can act on the in-play h2/et/pens windows.
+  // Keep IN-PROGRESS knockout matches visible: a match that has kicked off but
+  // still has an open checkpoint window (h2 / et / pens) must stay on /predict so
+  // players can act on it. Only past-kickoff matches qualify — upcoming matches
+  // (which all have open h1/h2 now) are governed by the window + cap below.
   const visibleIds = new Set(matches.map((m) => m.id));
   const { data: openPhaseRows } = await supabase
     .from("match_checkpoint_phases")
@@ -122,10 +123,16 @@ export default async function PredictPage() {
       .from("matches")
       .select(MATCH_SELECT)
       .in("id", liveMatchIds)
-      .neq("status", "finished");
+      .neq("status", "finished")
+      .lt("kickoff_time", now);
     for (const m of liveMatchesRaw ?? []) matches.push(mapMatch(m));
     matches.sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime());
   }
+
+  // Show at most the next 4 matches at a time (live ones sort first, so they're
+  // always included), rather than dumping all 16 RO32 fixtures at once.
+  const MAX_PREDICT_MATCHES = 4;
+  matches = matches.slice(0, MAX_PREDICT_MATCHES);
 
   // Fetch existing predictions for these matches
   const matchIds = matches.map((m) => m.id);
