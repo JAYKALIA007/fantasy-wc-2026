@@ -1,13 +1,5 @@
-import { ROUND_IDS } from "@/lib/constants";
 import { buildMemberMaps, type LeagueMemberRow } from "@/lib/server/members";
 import { currentHolding, type HoldingRow } from "@/lib/server/holdings";
-
-// Reverse of ROUND_IDS: round UUID → its short name. progression_bonus_points
-// stores that short name in `milestone` (e.g. "ro32"), so this lets us scope
-// progression bonuses to a round.
-const ROUND_ID_TO_NAME: Record<string, string> = Object.fromEntries(
-  Object.entries(ROUND_IDS).map(([name, id]) => [id, name])
-);
 
 export interface LeaderboardRow {
   user_id: string;
@@ -46,8 +38,6 @@ export async function computeLeaderboard(
     adminUserId
   );
 
-  const roundName = roundId ? (ROUND_ID_TO_NAME[roundId] ?? null) : null;
-
   const emptyRows = Promise.resolve({ data: [] as { league_member_id: string; points: number }[] });
   const emptyHoldings = Promise.resolve({
     data: [] as (HoldingRow & { league_member_id: string })[],
@@ -72,12 +62,17 @@ export async function computeLeaderboard(
     .eq("matches.status", "finished");
   if (roundId) nationBonusQuery = nationBonusQuery.eq("matches.round_id", roundId);
 
-  // Progression bonus — milestone is the round's short name (e.g. "ro32").
-  let progressionQuery = supabase
-    .from("progression_bonus_points")
-    .select("league_member_id, points")
-    .in("league_member_id", memberIds);
-  if (roundId && roundName) progressionQuery = progressionQuery.eq("milestone", roundName);
+  // Progression bonus — EXCLUDED from per-round views. A "reach-X" milestone
+  // (e.g. reach-RO32 = +3/+6 for surviving the group stage) is banked between
+  // rounds against picks held before the round's matches are played, so it
+  // belongs to no single round's "points earned this round" total. It appears
+  // only in the cumulative (roundId === null) Overall standing.
+  const progressionQuery = roundId
+    ? emptyRows
+    : supabase
+        .from("progression_bonus_points")
+        .select("league_member_id, points")
+        .in("league_member_id", memberIds);
 
   // Swap penalties — has a round_id column directly.
   let penaltyQuery = supabase
