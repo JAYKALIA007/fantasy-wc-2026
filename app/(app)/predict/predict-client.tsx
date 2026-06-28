@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { toISTTime, getISTDateKey, getDayLabel } from "@/lib/utils/date";
 import type { Nation } from "@/lib/types";
+import type { CheckpointPhase, CheckpointPick } from "./page";
 
 interface Match {
   id: number;
@@ -33,6 +34,8 @@ interface Props {
   leagueId: string;
   roundLabel: string;
   nextUnlockLabel: string;
+  checkpointPhasesByMatch: Record<number, CheckpointPhase[]>;
+  checkpointPicksByMatch: Record<number, CheckpointPick[]>;
 }
 
 
@@ -114,7 +117,163 @@ function FlagChip({ code }: { code: string }) {
   );
 }
 
-export default function PredictClient({ matches, existingPredictions, leagueId, roundLabel, nextUnlockLabel }: Props) {
+const PHASE_LABELS: Record<string, string> = {
+  h1: "Half-time",
+  h2: "90' score",
+  et: "Extra time",
+  pens: "Penalties",
+};
+
+function CheckpointSection({
+  matchId,
+  leagueId,
+  phases,
+  myPicks,
+}: {
+  matchId: number;
+  leagueId: string;
+  phases: CheckpointPhase[];
+  myPicks: CheckpointPick[];
+}) {
+  const openPhase = phases.find((p) => p.status === "open");
+  const closedPhases = phases.filter((p) => ["closed", "scored"].includes(p.status));
+
+  const existingOpenPick = openPhase
+    ? myPicks.find((p) => p.phase === openPhase.phase)
+    : null;
+
+  const [home, setHome] = useState(existingOpenPick?.predicted_home ?? 0);
+  const [away, setAway] = useState(existingOpenPick?.predicted_away ?? 0);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(existingOpenPick != null);
+  const [committedHome, setCommittedHome] = useState(existingOpenPick?.predicted_home ?? 0);
+  const [committedAway, setCommittedAway] = useState(existingOpenPick?.predicted_away ?? 0);
+  const [flash, setFlash] = useState(false);
+
+  if (phases.length === 0) return null;
+
+  const isDirty = home !== committedHome || away !== committedAway;
+
+  const handleSubmit = async () => {
+    if (!openPhase) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/checkpoint-picks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          match_id: matchId,
+          phase: openPhase.phase,
+          predicted_home: home,
+          predicted_away: away,
+          league_id: leagueId,
+        }),
+      });
+      if (res.ok) {
+        setSaved(true);
+        setCommittedHome(home);
+        setCommittedAway(away);
+        setFlash(true);
+        setTimeout(() => setFlash(false), 1500);
+      } else {
+        const data = await res.json() as { error?: string };
+        alert(data.error ?? "Failed to save");
+      }
+    } catch {
+      alert("Network error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 12, borderTop: "1px dashed rgba(255,255,255,0.12)", paddingTop: 12 }}>
+      <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+        Live checkpoints
+      </div>
+
+      {/* Recap of closed phases */}
+      {closedPhases.map((p) => {
+        const myPick = myPicks.find((pk) => pk.phase === p.phase);
+        const isScored = p.status === "scored";
+        return (
+          <div key={p.phase} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+            <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)" }}>
+              {PHASE_LABELS[p.phase] ?? p.phase}
+            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {myPick ? (
+                <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n4)" }}>
+                  {myPick.predicted_home}–{myPick.predicted_away}
+                </span>
+              ) : (
+                <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n6)" }}>—</span>
+              )}
+              {isScored && p.actual_home != null && (
+                <>
+                  <span style={{ color: "var(--n7)", fontSize: 11 }}>vs</span>
+                  <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12, color: "var(--n3)" }}>
+                    {p.actual_home}–{p.actual_away}
+                  </span>
+                  {myPick && (
+                    <span style={{
+                      fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 12,
+                      color: (myPick.points ?? 0) > 0 ? "var(--g3)" : "var(--n6)",
+                    }}>
+                      {(myPick.points ?? 0) > 0 ? `+${myPick.points}` : "0"}
+                    </span>
+                  )}
+                </>
+              )}
+              {!isScored && (
+                <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n6)" }}>awaiting result</span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Open phase input */}
+      {openPhase && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12, color: "var(--gold)", marginBottom: 8 }}>
+            ⚡ {PHASE_LABELS[openPhase.phase] ?? openPhase.phase} — predict now
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
+            <ScoreStepper value={home} onChange={setHome} disabled={saving} />
+            <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 18, color: "var(--n5)" }}>–</span>
+            <ScoreStepper value={away} onChange={setAway} disabled={saving} />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontFamily: "var(--font-inter), sans-serif" }}>
+              Exact <b style={{ color: "var(--g4)" }}>+2</b>
+            </span>
+            {flash ? (
+              <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12, color: "var(--g3)" }}>✓ Saved!</span>
+            ) : saved && !isDirty ? (
+              <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 600, fontSize: 11, color: "var(--g4)" }}>✓ Saved</span>
+            ) : null}
+          </div>
+          <button
+            onClick={handleSubmit}
+            disabled={saving}
+            style={{
+              marginTop: 8, width: "100%", padding: "10px 0", borderRadius: 10, border: "none",
+              background: saved && !isDirty ? "rgba(0,184,92,0.2)" : "rgba(0,184,92,0.35)",
+              color: saved && !isDirty ? "var(--g4)" : "#fff",
+              fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13,
+              cursor: saving ? "not-allowed" : "pointer",
+            }}
+          >
+            {saving ? "Saving…" : saved && !isDirty ? "Update pick" : "Save pick"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function PredictClient({ matches, existingPredictions, leagueId, roundLabel, nextUnlockLabel, checkpointPhasesByMatch, checkpointPicksByMatch }: Props) {
   const initialScores = () => {
     const map: Record<number, [number, number]> = {};
     for (const m of matches) {
@@ -226,6 +385,9 @@ export default function PredictClient({ matches, existingPredictions, leagueId, 
               const isSaved = savedMatches.has(match.id);
               const isSaving = savingMap[match.id] ?? false;
               const isFlashing = flashMap[match.id] ?? false;
+              const isKnockout = match.round && match.round.id !== "a0000000-0000-0000-0000-000000000001";
+              const matchPhases = checkpointPhasesByMatch[match.id] ?? [];
+              const matchPicks = checkpointPicksByMatch[match.id] ?? [];
 
               return (
                 <div key={match.id} style={{ background: "var(--n1)", borderRadius: 16, padding: "16px 16px 14px", boxShadow: "var(--sh-md)", opacity: locked && !isSaved ? 0.7 : 1 }}>
@@ -292,6 +454,15 @@ export default function PredictClient({ matches, existingPredictions, leagueId, 
                       )}
                     </div>
                   </div>
+
+                  {isKnockout && matchPhases.length > 0 && (
+                    <CheckpointSection
+                      matchId={match.id}
+                      leagueId={leagueId}
+                      phases={matchPhases}
+                      myPicks={matchPicks}
+                    />
+                  )}
 
                   {match.venue_city && (
                     <div style={{ marginTop: 10, textAlign: "center", fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n5)" }}>

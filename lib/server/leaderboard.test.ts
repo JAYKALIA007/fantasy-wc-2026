@@ -11,6 +11,7 @@ function mockSupabase(tables: Record<string, unknown[]>) {
         select: () => chain,
         eq: () => chain,
         in: () => chain,
+        not: () => chain,
         then: (resolve: (v: unknown) => unknown) => resolve(result),
       };
       return chain;

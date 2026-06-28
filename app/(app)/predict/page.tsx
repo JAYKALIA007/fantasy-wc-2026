@@ -19,6 +19,20 @@ interface Match {
   round: { id: string; name: string } | null;
 }
 
+export interface CheckpointPhase {
+  phase: string;
+  status: string;
+  actual_home: number | null;
+  actual_away: number | null;
+}
+
+export interface CheckpointPick {
+  phase: string;
+  predicted_home: number;
+  predicted_away: number;
+  points: number | null;
+}
+
 interface ExistingPrediction {
   match_id: number;
   predicted_home_score: number;
@@ -108,6 +122,47 @@ export default async function PredictPage() {
     existingPredictions = (predsRaw ?? []) as ExistingPrediction[];
   }
 
+  // Fetch open checkpoint phases for the visible knockout matches
+  const knockoutMatchIds = matches
+    .filter((m) => m.round && m.round.id !== "a0000000-0000-0000-0000-000000000001")
+    .map((m) => m.id);
+
+  type RawPhase = { match_id: number; phase: string; status: string; actual_home: number | null; actual_away: number | null };
+  type RawPick  = { match_id: number; phase: string; predicted_home: number; predicted_away: number; points: number | null };
+
+  let checkpointPhases: RawPhase[] = [];
+  let myCheckpointPicks: RawPick[] = [];
+
+  if (knockoutMatchIds.length > 0) {
+    const [phasesRes, picksRes] = await Promise.all([
+      supabase
+        .from("match_checkpoint_phases")
+        .select("match_id, phase, status, actual_home, actual_away")
+        .in("match_id", knockoutMatchIds),
+      supabase
+        .from("live_checkpoint_predictions")
+        .select("match_id, phase, predicted_home, predicted_away, points")
+        .eq("user_id", user.id)
+        .in("match_id", knockoutMatchIds),
+    ]);
+    checkpointPhases = (phasesRes.data ?? []) as RawPhase[];
+    myCheckpointPicks = (picksRes.data ?? []) as RawPick[];
+  }
+
+  // Group by match_id
+  const phasesByMatch = new Map<number, CheckpointPhase[]>();
+  for (const p of checkpointPhases) {
+    const arr = phasesByMatch.get(p.match_id) ?? [];
+    arr.push({ phase: p.phase, status: p.status, actual_home: p.actual_home, actual_away: p.actual_away });
+    phasesByMatch.set(p.match_id, arr);
+  }
+  const picksByMatch = new Map<number, CheckpointPick[]>();
+  for (const p of myCheckpointPicks) {
+    const arr = picksByMatch.get(p.match_id) ?? [];
+    arr.push({ phase: p.phase, predicted_home: p.predicted_home, predicted_away: p.predicted_away, points: p.points });
+    picksByMatch.set(p.match_id, arr);
+  }
+
   const roundName = matches[0]?.round?.name ?? "Round of 16";
 
   const roundLabels: Record<string, string> = {
@@ -127,6 +182,8 @@ export default async function PredictPage() {
       leagueId={membership.league_id as string}
       roundLabel={roundLabels[roundName] ?? roundName}
       nextUnlockLabel={nextUnlockLabel}
+      checkpointPhasesByMatch={Object.fromEntries(phasesByMatch)}
+      checkpointPicksByMatch={Object.fromEntries(picksByMatch)}
     />
   );
 }

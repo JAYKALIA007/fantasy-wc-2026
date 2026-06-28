@@ -103,6 +103,13 @@ export function AdminClient({
   const [matchStatusMsgs, setMatchStatusMsgs] = useState<Record<number, string>>({});
   const [matchSummaries, setMatchSummaries] = useState<Record<number, { total: number; correct: number; exact: number }>>({});
 
+  // Checkpoint phases per RO32 match: phase rows keyed by match_id
+  type PhaseRow = { phase: string; status: string; actual_home: number | null; actual_away: number | null };
+  const [checkpointPhases, setCheckpointPhases] = useState<Record<number, PhaseRow[]>>({});
+  // Checkpoint score inputs (admin enters actual): { home, away } per matchId-phase key
+  const [cpInputs, setCpInputs] = useState<Record<string, { home: string; away: string }>>({});
+  const [cpBusy, setCpBusy] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
     void (async () => {
       const { createClient } = await import("@/lib/supabase/client");
@@ -164,6 +171,24 @@ export function AdminClient({
       });
       setMatchesLoading(false);
 
+      // Fetch checkpoint phases for RO32 matches
+      const ro32Ids = rows.filter((r) => r.round_id === RO32_ROUND_ID).map((r) => r.id);
+      if (ro32Ids.length > 0) {
+        const { data: phases } = await supabase
+          .from("match_checkpoint_phases")
+          .select("match_id, phase, status, actual_home, actual_away")
+          .in("match_id", ro32Ids);
+        if (phases) {
+          const byMatch: Record<number, PhaseRow[]> = {};
+          for (const p of phases) {
+            const mid = p.match_id as number;
+            if (!byMatch[mid]) byMatch[mid] = [];
+            byMatch[mid].push({ phase: p.phase as string, status: p.status as string, actual_home: p.actual_home as number | null, actual_away: p.actual_away as number | null });
+          }
+          setCheckpointPhases(byMatch);
+        }
+      }
+
       // Fetch prediction summaries for finished matches
       const finishedIds = rows.filter((r) => r.status === "finished").map((r) => r.id);
       if (finishedIds.length > 0) {
@@ -196,6 +221,64 @@ export function AdminClient({
       hour12: true,
     };
     return d.toLocaleString("en-IN", options) + " IST";
+  }
+
+  async function adminCheckpointPhase(matchId: number, phase: string, action: "open" | "close" | "score") {
+    const key = `${matchId}-${phase}`;
+    setCpBusy((prev) => ({ ...prev, [key]: true }));
+    try {
+      const body: Record<string, unknown> = { match_id: matchId, phase, action };
+      if (action === "score") {
+        const inp = cpInputs[key];
+        const ah = inp ? parseInt(inp.home, 10) : NaN;
+        const aa = inp ? parseInt(inp.away, 10) : NaN;
+        if (isNaN(ah) || isNaN(aa)) {
+          setStatusMsg("Error: Enter valid actual scores.");
+          return;
+        }
+        body.actual_home = ah;
+        body.actual_away = aa;
+      }
+      const res = await fetch("/api/admin/checkpoint-phase", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string; scored?: number };
+      if (!res.ok) {
+        setStatusMsg(`Error: ${data.error ?? "Unknown"}`);
+      } else {
+        // Update local phase state
+        setCheckpointPhases((prev) => {
+          const existing = prev[matchId] ?? [];
+          const newStatus = action === "open" ? "open" : action === "close" ? "closed" : "scored";
+          const found = existing.find((p) => p.phase === phase);
+          const inp = cpInputs[key];
+          const ah = inp ? parseInt(inp.home, 10) : null;
+          const aa = inp ? parseInt(inp.away, 10) : null;
+          if (found) {
+            return {
+              ...prev,
+              [matchId]: existing.map((p) =>
+                p.phase === phase
+                  ? { ...p, status: newStatus, actual_home: action === "score" ? ah : p.actual_home, actual_away: action === "score" ? aa : p.actual_away }
+                  : p
+              ),
+            };
+          } else {
+            return {
+              ...prev,
+              [matchId]: [...existing, { phase, status: newStatus, actual_home: null, actual_away: null }],
+            };
+          }
+        });
+        if (action === "score") {
+          setStatusMsg(`Scored! ${data.scored ?? 0} prediction(s) updated.`);
+        }
+      }
+    } finally {
+      setCpBusy((prev) => ({ ...prev, [key]: false }));
+    }
   }
 
   async function saveMatchScore(matchId: number) {
@@ -1101,6 +1184,73 @@ export function AdminClient({
                       {msg}
                     </div>
                   )}
+
+                  {/* Checkpoint phases — only for RO32 matches (past kickoff) */}
+                  {isRo32 && isPast && (() => {
+                    const phases = checkpointPhases[m.id] ?? [];
+                    // Always show h1; show h2/et/pens only if they exist
+                    const PHASE_LABELS: Record<string, string> = { h1: "HT (h1)", h2: "90' (h2)", et: "ET", pens: "Pens" };
+                    const allPhases = ["h1", "h2", "et", "pens"];
+                    const toShow = allPhases.filter((ph) => ph === "h1" || phases.some((p) => p.phase === ph));
+                    if (toShow.length === 0) toShow.push("h1");
+                    return (
+                      <div style={{ borderTop: "1px dashed rgba(255,255,255,0.1)", paddingTop: 8, marginTop: 2 }}>
+                        <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>
+                          Live Checkpoints
+                        </div>
+                        {toShow.map((ph) => {
+                          const row = phases.find((p) => p.phase === ph);
+                          const status = row?.status ?? "pending";
+                          const key = `${m.id}-${ph}`;
+                          const busy = cpBusy[key] ?? false;
+                          const inp = cpInputs[key] ?? { home: String(row?.actual_home ?? ""), away: String(row?.actual_away ?? "") };
+                          const statusColor = status === "open" ? "var(--gold)" : status === "scored" ? "var(--g3)" : "var(--n6)";
+                          return (
+                            <div key={ph} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n4)" }}>
+                                  {PHASE_LABELS[ph] ?? ph}
+                                  <span style={{ marginLeft: 6, fontSize: 10, color: statusColor, fontWeight: 700 }}>[{status}]</span>
+                                  {status === "scored" && row?.actual_home != null && (
+                                    <span style={{ marginLeft: 6, color: "var(--g3)", fontSize: 11 }}>{row.actual_home}–{row.actual_away}</span>
+                                  )}
+                                </span>
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  {status === "pending" && (
+                                    <button onClick={() => void adminCheckpointPhase(m.id, ph, "open")} disabled={busy}
+                                      style={{ padding: "3px 10px", borderRadius: 6, background: "var(--g3)", color: "#fff", fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, border: "none", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}>
+                                      Open
+                                    </button>
+                                  )}
+                                  {status === "open" && (
+                                    <button onClick={() => void adminCheckpointPhase(m.id, ph, "close")} disabled={busy}
+                                      style={{ padding: "3px 10px", borderRadius: 6, background: "var(--r2)", color: "#fff", fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, border: "none", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}>
+                                      Close
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              {(status === "closed" || status === "scored" || status === "open") && (
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <input type="number" min={0} max={20} value={inp.home}
+                                    onChange={(e) => setCpInputs((prev) => ({ ...prev, [key]: { ...inp, home: e.target.value } }))}
+                                    placeholder="H" style={{ width: 44, padding: "5px 6px", borderRadius: 6, border: "1px solid var(--n8)", background: "var(--surf2)", color: "var(--n0)", fontFamily: "var(--font-inter), sans-serif", fontSize: 13, textAlign: "center", outline: "none" }} />
+                                  <span style={{ color: "var(--n5)", fontWeight: 700 }}>–</span>
+                                  <input type="number" min={0} max={20} value={inp.away}
+                                    onChange={(e) => setCpInputs((prev) => ({ ...prev, [key]: { ...inp, away: e.target.value } }))}
+                                    placeholder="A" style={{ width: 44, padding: "5px 6px", borderRadius: 6, border: "1px solid var(--n8)", background: "var(--surf2)", color: "var(--n0)", fontFamily: "var(--font-inter), sans-serif", fontSize: 13, textAlign: "center", outline: "none" }} />
+                                  <button onClick={() => void adminCheckpointPhase(m.id, ph, "score")} disabled={busy}
+                                    style={{ padding: "5px 12px", borderRadius: 6, background: "var(--g3)", color: "#fff", fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12, border: "none", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}>
+                                    {busy ? "…" : "Save & Score"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })

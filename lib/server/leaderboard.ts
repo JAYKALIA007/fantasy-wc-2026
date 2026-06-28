@@ -10,6 +10,7 @@ export interface LeaderboardRow {
   nation_bonus: number;
   progression_bonus: number;
   swap_penalty: number;
+  live_checkpoint_points: number;
   primary_nation_id: number | null;
   joined_at: string;
   finished_prediction_count: number;
@@ -45,7 +46,10 @@ export async function computeLeaderboard(
   const emptyHoldings = Promise.resolve({
     data: [] as (HoldingRow & { league_member_id: string })[],
   });
-  const [finishedPredsResult, bonusResult, progressionResult, penaltyResult, holdingsResult] = await Promise.all([
+  const emptyLivePoints = Promise.resolve({
+    data: [] as { user_id: string; points: number }[],
+  });
+  const [finishedPredsResult, bonusResult, progressionResult, penaltyResult, holdingsResult, liveCheckpointResult] = await Promise.all([
     roundId ? predictionsQuery.eq("matches.round_id", roundId) : predictionsQuery,
     memberIds.length > 0
       ? supabase
@@ -66,6 +70,13 @@ export async function computeLeaderboard(
           .select("league_member_id, round_id, primary_nation_id, secondary_nation_id")
           .in("league_member_id", memberIds)
       : emptyHoldings,
+    memberIds.length > 0
+      ? supabase
+          .from("live_checkpoint_predictions")
+          .select("user_id, points")
+          .eq("league_id", leagueId)
+          .not("points", "is", null)
+      : emptyLivePoints,
   ]);
 
   // Held primary per member: the latest re-draft holding if any, else the group
@@ -95,6 +106,12 @@ export async function computeLeaderboard(
   const progressionByUser = sumByUser(progressionResult.data, "points");
   const penaltyByUser = sumByUser(penaltyResult.data, "amount");
 
+  // Live checkpoint points are keyed directly by user_id (not league_member_id)
+  const liveCheckpointByUser = new Map<string, number>();
+  for (const r of (liveCheckpointResult.data ?? []) as { user_id: string; points: number }[]) {
+    liveCheckpointByUser.set(r.user_id, (liveCheckpointByUser.get(r.user_id) ?? 0) + (r.points ?? 0));
+  }
+
   const predictionPointsByUser = new Map<string, number>();
   const finishedPredCountByUser = new Map<string, number>();
   for (const p of (finishedPredsResult.data ?? []) as { user_id: string; points: number | null }[]) {
@@ -109,6 +126,7 @@ export async function computeLeaderboard(
     const nationBonus = nationBonusByUser.get(userId) ?? 0;
     const progressionBonus = progressionByUser.get(userId) ?? 0;
     const swapPenalty = penaltyByUser.get(userId) ?? 0;
+    const liveCheckpointPoints = liveCheckpointByUser.get(userId) ?? 0;
     const heldPrimary = currentHolding(
       { primary_nation_id: member.primary_nation_id ?? null, secondary_nation_id: null },
       holdingsByMember.get(member.id) ?? []
@@ -116,11 +134,12 @@ export async function computeLeaderboard(
     rows.push({
       user_id: userId,
       profile_name: member.profile_name,
-      total_points: predictionPoints + nationBonus + progressionBonus - swapPenalty,
+      total_points: predictionPoints + nationBonus + progressionBonus - swapPenalty + liveCheckpointPoints,
       prediction_points: predictionPoints,
       nation_bonus: nationBonus,
       progression_bonus: progressionBonus,
       swap_penalty: swapPenalty,
+      live_checkpoint_points: liveCheckpointPoints,
       primary_nation_id: heldPrimary,
       joined_at: member.joined_at,
       finished_prediction_count: finishedPredCountByUser.get(userId) ?? 0,
