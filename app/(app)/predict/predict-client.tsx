@@ -518,22 +518,6 @@ export default function PredictClient({ matches, existingPredictions, leagueId, 
           </div>
         ))}
 
-        {/* Next window banner */}
-        <div style={{
-          marginTop: 4, padding: "14px 16px", borderRadius: 14,
-          background: "var(--surf2)", border: "1px dashed rgba(255,255,255,0.1)",
-          display: "flex", alignItems: "center", gap: 12,
-        }}>
-          <span style={{ fontSize: 20 }}>🔒</span>
-          <div>
-            <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 14, color: "var(--n0)" }}>
-              Next matches unlock {nextUnlockLabel}
-            </div>
-            <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", marginTop: 2 }}>
-              Check back then to predict the next batch
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

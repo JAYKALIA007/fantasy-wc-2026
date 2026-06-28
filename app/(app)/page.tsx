@@ -200,9 +200,12 @@ export default async function HomePage() {
       : (m.away_nation as Nation),
   }));
 
+  // Cap to match the predict page (which shows at most 4 matches at a time)
+  const visibleOpenMatches = openMatches.slice(0, 4);
+
   // Next batch: all open matches sharing the earliest kickoff time
-  const nextBatch: Match[] = openMatches.length > 0
-    ? openMatches.filter((m) => m.kickoff_time === openMatches[0].kickoff_time)
+  const nextBatch: Match[] = visibleOpenMatches.length > 0
+    ? visibleOpenMatches.filter((m) => m.kickoff_time === visibleOpenMatches[0].kickoff_time)
     : [];
 
   // Process recent matches
@@ -231,13 +234,13 @@ export default async function HomePage() {
   // Fetch sequential data in parallel
   const [predictedCountOrNull, recentPredictionsResult, nextBatchConsensusResult, livePredictionsResult] =
     await Promise.all([
-      openMatches.length > 0
+      visibleOpenMatches.length > 0
         ? supabase
             .from("predictions")
             .select("id", { count: "exact", head: true })
             .eq("user_id", user.id)
             .eq("league_id", leagueId)
-            .in("match_id", openMatches.map((m) => m.id))
+            .in("match_id", visibleOpenMatches.map((m) => m.id))
         : Promise.resolve({ count: 0 }),
 
       recentMatchIds.length > 0
@@ -268,7 +271,7 @@ export default async function HomePage() {
     ]);
 
   const predictedCount = predictedCountOrNull?.count ?? 0;
-  const unpredictedCount = openMatches.length - predictedCount;
+  const unpredictedCount = visibleOpenMatches.length - predictedCount;
 
   // Per-match consensus for the next batch, excluding admin
   type ConsensusEntry = { home: number; draw: number; away: number; total: number };
@@ -869,7 +872,7 @@ export default async function HomePage() {
         <NotificationPrompt />
 
         {/* Needs attention */}
-        {unpredictedCount > 0 && openMatches.length > 0 && (
+        {unpredictedCount > 0 && visibleOpenMatches.length > 0 && (
           <div
             style={{
               background: "var(--surf)",
@@ -913,7 +916,7 @@ export default async function HomePage() {
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column" }}>
-              {openMatches.slice(0, 3).map((m, idx) => (
+              {visibleOpenMatches.slice(0, 3).map((m, idx) => (
                 <div
                   key={m.id}
                   style={{
@@ -921,7 +924,7 @@ export default async function HomePage() {
                     alignItems: "center",
                     gap: 10,
                     padding: "10px 0",
-                    borderBottom: idx < Math.min(openMatches.length, 3) - 1 ? "1px solid var(--n9)" : "none",
+                    borderBottom: idx < Math.min(visibleOpenMatches.length, 3) - 1 ? "1px solid var(--n9)" : "none",
                   }}
                 >
                   <div
@@ -975,7 +978,7 @@ export default async function HomePage() {
                   </Link>
                 </div>
               ))}
-              {openMatches.length > 3 && (
+              {visibleOpenMatches.length > 3 && (
                 <Link
                   href="/predict"
                   style={{
