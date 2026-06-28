@@ -215,9 +215,14 @@ export default function RanksClient({
 
   const scheduleRefresh = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    // Score writes arrive in bursts during live scoring (the cron writes many
+    // rows at a phase boundary). A long debounce collapses each burst into a
+    // single refetch per client instead of one per write — the main lever for
+    // keeping /api/leaderboard CPU down under realtime fan-out. 2.5s of added
+    // latency on a leaderboard is imperceptible.
     refreshTimerRef.current = setTimeout(() => {
       void fetchLeaderboard(viewRef.current);
-    }, 400);
+    }, 2500);
   }, [fetchLeaderboard]);
 
   useEffect(() => {

@@ -5,6 +5,16 @@ export interface LeaderboardApiRow extends LeaderboardRow {
   primary_nation_name: string;
 }
 
+// Short-lived in-memory cache, keyed by league + round. Under realtime fan-out
+// many viewers refetch within the same instant after a score write; without this
+// each request runs computeLeaderboard (~10 Supabase queries) independently. A
+// few seconds of shared caching collapses that burst into one computation that
+// every concurrent viewer reuses — the result is at most CACHE_TTL_MS stale,
+// which is invisible on a leaderboard. (Per-instance under Fluid; still cuts
+// load proportionally across warm instances.)
+const CACHE_TTL_MS = 5000;
+const leaderboardCache = new Map<string, { rows: LeaderboardApiRow[]; expires: number }>();
+
 export async function GET(request: Request) {
   const supabase = await createClient();
 
@@ -38,6 +48,14 @@ export async function GET(request: Request) {
     .eq("id", leagueId)
     .single();
 
+  // Access control (auth + league membership) is verified above on every request
+  // and is never cached; only the expensive computed payload below is shared.
+  const cacheKey = `${leagueId}:${roundId ?? "all"}`;
+  const cached = leaderboardCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) {
+    return Response.json({ rows: cached.rows });
+  }
+
   const adminUserId = (league?.creator_id as string | null) ?? null;
   const rankRows = await computeLeaderboard(supabase, leagueId, adminUserId, roundId);
 
@@ -60,6 +78,8 @@ export async function GET(request: Request) {
     primary_nation_name:
       r.primary_nation_id !== null ? (nationNameMap.get(r.primary_nation_id) ?? "") : "",
   }));
+
+  leaderboardCache.set(cacheKey, { rows, expires: Date.now() + CACHE_TTL_MS });
 
   return Response.json({ rows });
 }
