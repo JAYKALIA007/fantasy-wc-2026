@@ -1,6 +1,13 @@
-import { ROUND_ID } from "@/lib/constants";
+import { ROUND_IDS } from "@/lib/constants";
 import { buildMemberMaps, type LeagueMemberRow } from "@/lib/server/members";
 import { currentHolding, type HoldingRow } from "@/lib/server/holdings";
+
+// Reverse of ROUND_IDS: round UUID → its short name. progression_bonus_points
+// stores that short name in `milestone` (e.g. "ro32"), so this lets us scope
+// progression bonuses to a round.
+const ROUND_ID_TO_NAME: Record<string, string> = Object.fromEntries(
+  Object.entries(ROUND_IDS).map(([name, id]) => [id, name])
+);
 
 export interface LeaderboardRow {
   user_id: string;
@@ -19,8 +26,10 @@ export interface LeaderboardRow {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseLike = { from: (table: string) => any };
 
-// roundId null = cumulative prediction points across ALL rounds (tournament-long
-// total). Pass a specific round id to scope prediction points to that round.
+// roundId null = cumulative total across ALL rounds (tournament-long total).
+// Pass a specific round id to scope EVERY component (predictions, nation bonus,
+// live checkpoints, progression, swap penalties) to that round — a true
+// per-round standing.
 export async function computeLeaderboard(
   supabase: SupabaseLike,
   leagueId: string,
@@ -37,46 +46,72 @@ export async function computeLeaderboard(
     adminUserId
   );
 
+  const roundName = roundId ? (ROUND_ID_TO_NAME[roundId] ?? null) : null;
+
   const emptyRows = Promise.resolve({ data: [] as { league_member_id: string; points: number }[] });
-  const predictionsQuery = supabase
-    .from("predictions")
-    .select("user_id, points, matches!inner(status, round_id)")
-    .eq("league_id", leagueId)
-    .eq("matches.status", "finished");
   const emptyHoldings = Promise.resolve({
     data: [] as (HoldingRow & { league_member_id: string })[],
   });
   const emptyLivePoints = Promise.resolve({
     data: [] as { user_id: string; points: number }[],
   });
+
+  // Predictions — scoped by the match's round.
+  let predictionsQuery = supabase
+    .from("predictions")
+    .select("user_id, points, matches!inner(status, round_id)")
+    .eq("league_id", leagueId)
+    .eq("matches.status", "finished");
+  if (roundId) predictionsQuery = predictionsQuery.eq("matches.round_id", roundId);
+
+  // Nation bonus — scoped by the match's round.
+  let nationBonusQuery = supabase
+    .from("nation_bonus_points")
+    .select("league_member_id, points, matches!inner(status, round_id)")
+    .in("league_member_id", memberIds)
+    .eq("matches.status", "finished");
+  if (roundId) nationBonusQuery = nationBonusQuery.eq("matches.round_id", roundId);
+
+  // Progression bonus — milestone is the round's short name (e.g. "ro32").
+  let progressionQuery = supabase
+    .from("progression_bonus_points")
+    .select("league_member_id, points")
+    .in("league_member_id", memberIds);
+  if (roundId && roundName) progressionQuery = progressionQuery.eq("milestone", roundName);
+
+  // Swap penalties — has a round_id column directly.
+  let penaltyQuery = supabase
+    .from("swap_penalties")
+    .select("league_member_id, amount")
+    .in("league_member_id", memberIds);
+  if (roundId) penaltyQuery = penaltyQuery.eq("round_id", roundId);
+
+  // Live checkpoints — scoped by the match's round (only join when scoping).
+  const liveQuery = roundId
+    ? supabase
+        .from("live_checkpoint_predictions")
+        .select("user_id, points, matches!inner(round_id)")
+        .eq("league_id", leagueId)
+        .not("points", "is", null)
+        .eq("matches.round_id", roundId)
+    : supabase
+        .from("live_checkpoint_predictions")
+        .select("user_id, points")
+        .eq("league_id", leagueId)
+        .not("points", "is", null);
+
   const [finishedPredsResult, bonusResult, progressionResult, penaltyResult, holdingsResult, liveCheckpointResult] = await Promise.all([
-    roundId ? predictionsQuery.eq("matches.round_id", roundId) : predictionsQuery,
-    memberIds.length > 0
-      ? supabase
-          .from("nation_bonus_points")
-          .select("league_member_id, points, matches!inner(status)")
-          .in("league_member_id", memberIds)
-          .eq("matches.status", "finished")
-      : emptyRows,
-    memberIds.length > 0
-      ? supabase.from("progression_bonus_points").select("league_member_id, points").in("league_member_id", memberIds)
-      : emptyRows,
-    memberIds.length > 0
-      ? supabase.from("swap_penalties").select("league_member_id, amount").in("league_member_id", memberIds)
-      : Promise.resolve({ data: [] as { league_member_id: string; amount: number }[] }),
+    predictionsQuery,
+    memberIds.length > 0 ? nationBonusQuery : emptyRows,
+    memberIds.length > 0 ? progressionQuery : emptyRows,
+    memberIds.length > 0 ? penaltyQuery : Promise.resolve({ data: [] as { league_member_id: string; amount: number }[] }),
     memberIds.length > 0
       ? supabase
           .from("member_round_teams")
           .select("league_member_id, round_id, primary_nation_id, secondary_nation_id")
           .in("league_member_id", memberIds)
       : emptyHoldings,
-    memberIds.length > 0
-      ? supabase
-          .from("live_checkpoint_predictions")
-          .select("user_id, points")
-          .eq("league_id", leagueId)
-          .not("points", "is", null)
-      : emptyLivePoints,
+    memberIds.length > 0 ? liveQuery : emptyLivePoints,
   ]);
 
   // Held primary per member: the latest re-draft holding if any, else the group

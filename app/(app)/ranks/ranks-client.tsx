@@ -15,11 +15,14 @@ interface Props {
   memberCount: number;
   leagueId: string;
   roundId: string;
+  ro32RoundId: string;
   myRank: number | null;
   myPoints: number;
   myPrimaryNationName: string;
   leaderPoints: number;
 }
+
+type LeaderboardView = "overall" | "ro32";
 
 const roundLabels: Record<string, string> = {
   "a0000000-0000-0000-0000-000000000001": "Group Stage",
@@ -178,32 +181,42 @@ export default function RanksClient({
   memberCount,
   leagueId,
   roundId,
+  ro32RoundId,
   myRank,
   myPoints,
   myPrimaryNationName,
   leaderPoints,
 }: Props) {
   const [rows, setRows] = useState<RankRow[]>(initialRows);
+  const [view, setView] = useState<LeaderboardView>("overall");
+  const viewRef = useRef<LeaderboardView>("overall");
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const supabase = createClient();
 
-  const fetchLeaderboard = useCallback(async () => {
+  const fetchLeaderboard = useCallback(async (v: LeaderboardView) => {
     try {
-      // No round_id → cumulative total across all rounds.
-      const res = await fetch(`/api/leaderboard`);
+      // overall → cumulative; ro32 → all components scoped to the RO32 round.
+      const url = v === "ro32" ? `/api/leaderboard?round_id=${ro32RoundId}` : `/api/leaderboard`;
+      const res = await fetch(url);
       if (!res.ok) return;
       const data = (await res.json()) as { rows: RankRow[] };
       if (data.rows) setRows(data.rows);
     } catch {
       // Keep showing last known rows on transient failures.
     }
-  }, []);
+  }, [ro32RoundId]);
+
+  const switchView = useCallback((v: LeaderboardView) => {
+    setView(v);
+    viewRef.current = v;
+    void fetchLeaderboard(v);
+  }, [fetchLeaderboard]);
 
   const scheduleRefresh = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = setTimeout(() => {
-      void fetchLeaderboard();
+      void fetchLeaderboard(viewRef.current);
     }, 400);
   }, [fetchLeaderboard]);
 
@@ -248,6 +261,15 @@ export default function RanksClient({
           event: "*",
           schema: "public",
           table: "swap_penalties",
+        },
+        onScoreChange
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "live_checkpoint_predictions",
         },
         onScoreChange
       )
@@ -325,6 +347,36 @@ export default function RanksClient({
           gap: 12,
         }}
       >
+        {/* Overall / RO32 toggle */}
+        <div style={{ display: "flex", background: "var(--surf2)", borderRadius: 12, padding: 4, gap: 4 }}>
+          {([
+            { key: "overall" as const, label: "Overall" },
+            { key: "ro32" as const, label: "Round of 32" },
+          ]).map((t) => {
+            const active = view === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => switchView(t.key)}
+                style={{
+                  flex: 1, padding: "9px 0", borderRadius: 9, border: "none", cursor: "pointer",
+                  background: active ? "var(--n0)" : "transparent",
+                  color: active ? "#fff" : "var(--n4)",
+                  fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13,
+                }}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {view === "ro32" && (
+          <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n5)", paddingLeft: 4 }}>
+            RO32 round only — predictions, nation bonus, live checkpoints & redraft penalties for this round.
+          </div>
+        )}
+
         <Link
           href="/bracket"
           style={{
