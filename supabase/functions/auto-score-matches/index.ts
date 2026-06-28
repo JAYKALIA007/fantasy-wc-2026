@@ -432,6 +432,14 @@ serve(async (_req: Request) => {
   // ── PASS 2: live checkpoint windows (knockouts only) ───────────────────────
   // Closing/scoring/snapshotting + lazy et/pens need live ESPN state, so this
   // pass stays proximity-windowed: ~4h before kickoff through ~3h after.
+  //
+  // NOTE: we deliberately do NOT filter out status='finished' here. PASS 1 runs
+  // first and finalizes a match the moment ESPN reports it complete — but the
+  // "complete" stage is exactly where h2 (90') and pens (shootout) get scored.
+  // Excluding finished matches would mean those final checkpoints never score
+  // for any match that completes after kickoff+2h (all ET/penalty matches, and
+  // 90' matches with long stoppage). The state machine is idempotent, so re-
+  // visiting an already-scored finished match just produces zero actions.
   const cpFrom = new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString();
   const cpTo = new Date(now.getTime() + 3 * 60 * 60 * 1000).toISOString();
   const { data: liveMatches } = await supabase
@@ -439,7 +447,6 @@ serve(async (_req: Request) => {
     .select(`id, kickoff_time, round_id, home_nation_id, away_nation_id,
       home_nation:home_nation_id(name), away_nation:away_nation_id(name)`)
     .in("round_id", KNOCKOUT_ROUND_IDS)
-    .neq("status", "finished")
     .gte("kickoff_time", cpFrom)
     .lte("kickoff_time", cpTo);
 
