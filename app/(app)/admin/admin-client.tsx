@@ -1188,11 +1188,13 @@ export function AdminClient({
                   {/* Checkpoint phases — only for RO32 matches (past kickoff) */}
                   {isRo32 && (isPast || (checkpointPhases[m.id]?.length ?? 0) > 0) && !isFinished && (() => {
                     const phases = checkpointPhases[m.id] ?? [];
-                    // Always show h1; show h2/et/pens only if they exist
+                    // Always show all four phases. The cron auto-opens et/pens
+                    // when ESPN surfaces the end-of-90'/end-of-ET break with the
+                    // score level, but those rows don't exist until then — so the
+                    // admin "Open" button must always be available as the manual
+                    // backup if ESPN never exposes that brief break state.
                     const PHASE_LABELS: Record<string, string> = { h1: "HT (h1)", h2: "90' (h2)", et: "ET", pens: "Pens" };
-                    const allPhases = ["h1", "h2", "et", "pens"];
-                    const toShow = allPhases.filter((ph) => ph === "h1" || phases.some((p) => p.phase === ph));
-                    if (toShow.length === 0) toShow.push("h1");
+                    const toShow = ["h1", "h2", "et", "pens"];
                     return (
                       <div style={{ borderTop: "1px dashed rgba(255,255,255,0.1)", paddingTop: 8, marginTop: 2 }}>
                         <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>
