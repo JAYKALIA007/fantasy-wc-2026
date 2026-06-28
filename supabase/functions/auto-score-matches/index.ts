@@ -296,10 +296,19 @@ serve(async (_req: Request) => {
   const finalPass: Array<{ match_id: number; result: string }> = [];
   const checkpointPass: Array<{ match_id: number; result: string }> = [];
 
-  // ── PASS 1: final-score scoring (unchanged behaviour) ──────────────────────
+  // ── PASS 1: final-score scoring ────────────────────────────────────────────
   // Only ever process matches that are NOT yet finished, guaranteeing already-
   // scored matches (the whole group stage) are never re-touched.
-  const cutoff = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString();
+  //
+  // ESPN's `completed` flag (checked in the loop below) is the real source of
+  // truth for whether a match is over. This time floor is only a coarse
+  // pre-filter / glitch guard: a match cannot legitimately be complete before
+  // ~105 min (45 + half-time + 45 + stoppage), so a 100-min floor clears BEFORE
+  // any regulation full-time (~110 min) — no finalization lag — while still
+  // preventing us from finalizing mid-match if ESPN momentarily reports
+  // `completed=true` during play. Matches that run to extra time / penalties are
+  // already past this floor and finalize whenever ESPN marks them complete.
+  const cutoff = new Date(now.getTime() - 100 * 60 * 1000).toISOString();
   const { data: finishMatches, error: finishErr } = await supabase
     .from("matches")
     .select(`id, kickoff_time, round_id, home_nation_id, away_nation_id,
