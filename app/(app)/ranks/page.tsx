@@ -50,18 +50,9 @@ export default async function RanksPage() {
   const myRank = myRankRow ? rankRows.indexOf(myRankRow) + 1 : null;
   const leaderPoints = rankRows[0]?.total_points ?? 0;
 
-  // Nation name lookup
-  const myPrimaryNationId = membership.primary_nation_id as number | null;
-  let myPrimaryNationName = "";
-  if (myPrimaryNationId !== null) {
-    const { data: nationRow } = await supabase
-      .from("nations")
-      .select("name")
-      .eq("id", myPrimaryNationId)
-      .single();
-    myPrimaryNationName = (nationRow?.name as string) ?? "";
-  }
-
+  // Nation name lookup — keyed on the HELD primary (heldPrimary from the
+  // leaderboard), which already reflects the redrafted team, so both the rows
+  // and the current user's own flag show the right nation post-redraft.
   const allPrimaryNationIds = Array.from(
     new Set(rankRows.map((r) => r.primary_nation_id).filter((id): id is number => id !== null))
   );
@@ -80,6 +71,12 @@ export default async function RanksPage() {
     ...r,
     primary_nation_name: r.primary_nation_id !== null ? (nationNameMap.get(r.primary_nation_id) ?? "") : "",
   }));
+
+  // The current user's displayed nation must be their REDRAFTED holding, not the
+  // frozen group pick — read it from their own leaderboard row's held primary.
+  const myPrimaryNationName = myRankRow?.primary_nation_id != null
+    ? (nationNameMap.get(myRankRow.primary_nation_id) ?? "")
+    : "";
 
   // Non-admin member count
   const nonAdminMemberCount = (memberCount ?? 0) - (adminUserId ? 1 : 0);
