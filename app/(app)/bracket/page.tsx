@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import BracketClient from "./bracket-client";
-import { ROUND_IDS, BRACKET_LOCK_LEAD_MS } from "@/lib/constants";
+import { ROUND_IDS, BRACKET_LOCK_LEAD_MS, BRACKET_OVERRIDE_UNTIL } from "@/lib/constants";
 import { resolveAdvancers, scoreBracket, type BracketTie } from "@/lib/server/bracket";
 
 type NationRef = { id: number; name: string };
@@ -36,7 +36,8 @@ export default async function BracketPage() {
 
   // Bracket locks BRACKET_LOCK_LEAD_MS before the first match (midnight IST).
   const lockAt = matches.length > 0 ? new Date(new Date(matches[0].kickoff_time).getTime() - BRACKET_LOCK_LEAD_MS).toISOString() : null;
-  const locked = lockAt ? new Date() >= new Date(lockAt) : false;
+  const overrideActive = Date.now() < BRACKET_OVERRIDE_UNTIL;
+  const locked = overrideActive ? false : (lockAt ? new Date() >= new Date(lockAt) : false);
 
   // This user's existing picks.
   const { data: myPicksRaw } = await supabase

@@ -18,3 +18,7 @@ export const RO32_PRIMARY_POOL_SIZE = 12;
 // (30 min → midnight 00:00 IST when the first match is 00:30 IST), matching the
 // re-draft window close.
 export const BRACKET_LOCK_LEAD_MS = 30 * 60 * 1000;
+
+// One-time admin override: keep bracket open until 12:15 IST on 2026-06-29
+// to allow latecomers to submit. Expires automatically after this timestamp.
+export const BRACKET_OVERRIDE_UNTIL = new Date("2026-06-29T06:45:00Z").getTime();

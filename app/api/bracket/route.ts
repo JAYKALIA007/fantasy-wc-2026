@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { ROUND_IDS, BRACKET_LOCK_LEAD_MS } from "@/lib/constants";
+import { ROUND_IDS, BRACKET_LOCK_LEAD_MS, BRACKET_OVERRIDE_UNTIL } from "@/lib/constants";
 
 interface BracketBody {
   picks: { match_id: number; advancer_nation_id: number }[];
@@ -37,12 +37,13 @@ export async function POST(request: Request) {
     .eq("round_id", ROUND_IDS.ro32);
   const byId = new Map((matches ?? []).map((m) => [m.id as number, m]));
 
-  // Bracket locks at the earliest RO32 kickoff.
+  // Bracket locks at the earliest RO32 kickoff (unless admin override is active).
   const earliest = (matches ?? []).reduce<number | null>((min, m) => {
     const t = new Date(m.kickoff_time as string).getTime();
     return min === null || t < min ? t : min;
   }, null);
-  if (earliest !== null && Date.now() >= earliest - BRACKET_LOCK_LEAD_MS) {
+  const overrideActive = Date.now() < BRACKET_OVERRIDE_UNTIL;
+  if (!overrideActive && earliest !== null && Date.now() >= earliest - BRACKET_LOCK_LEAD_MS) {
     return Response.json({ error: "Bracket is locked" }, { status: 403 });
   }
 
