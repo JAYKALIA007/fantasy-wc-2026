@@ -155,6 +155,41 @@ export default async function RulesPage() {
           Your total score = <strong style={{ color: "var(--n0)" }}>prediction points</strong> + <strong style={{ color: "var(--n0)" }}>live predictions</strong> + <strong style={{ color: "var(--n0)" }}>nation bonus</strong> + <strong style={{ color: "var(--n0)" }}>progression bonus</strong> − <strong style={{ color: "var(--n0)" }}>swap penalties</strong>. The Ranks page breaks this down per player. The knockout bracket is scored separately.
         </p>
       </Section>
+
+      {/* FAQ */}
+      <Section title="❓  FAQ">
+        {[
+          {
+            q: "What are the HT and FT inputs in the predict card?",
+            a: "Live checkpoint picks for knockout matches. Set your half-time and full-time score guesses before kickoff — each exact match earns +2 pts, scored separately from your main prediction.",
+          },
+          {
+            q: "When do HT and FT picks lock?",
+            a: "HT locks at kickoff (you can't change it once the match starts). FT locks at half-time — so you can still adjust your full-time guess while watching the first half.",
+          },
+          {
+            q: "What's the Bracket contest? Does it count towards my main score?",
+            a: "No — it's a separate side contest. Pick who advances in every RO32 tie before midnight. Standings are tracked independently on the Bracket page. It doesn't affect your main leaderboard points.",
+          },
+          {
+            q: "I already picked nations during sign-up. Why can I pick again?",
+            a: "The RO32 re-draft lets you swap to any of the 32 surviving teams. Your old group-stage picks carry over automatically — the re-draft is optional. Swapping your primary costs −3 pts; swapping your wildcard is free.",
+          },
+          {
+            q: "Predict only shows 4 matches. Where are the rest?",
+            a: "Matches are batched. Once those 4 are played or locked, the next batch appears. Check back after kickoff.",
+          },
+        ].map(({ q, a }, i, arr) => (
+          <div key={i} style={{ padding: "12px 0", borderBottom: i < arr.length - 1 ? "1px solid var(--n8)" : "none" }}>
+            <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "var(--n0)", margin: "0 0 5px", lineHeight: 1.4 }}>
+              {q}
+            </p>
+            <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: 0, lineHeight: 1.55 }}>
+              {a}
+            </p>
+          </div>
+        ))}
+      </Section>
     </div>
   );
 }
