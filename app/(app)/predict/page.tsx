@@ -61,18 +61,7 @@ export default async function PredictPage() {
     redirect("/onboarding");
   }
 
-  // Cutoff = end of tomorrow IST (start of day after tomorrow in IST, converted to UTC)
   const now = new Date().toISOString();
-  const istOffsetMs = 5.5 * 60 * 60 * 1000;
-  const nowIST = new Date(Date.now() + istOffsetMs);
-  const cutoff = new Date(
-    Date.UTC(nowIST.getUTCFullYear(), nowIST.getUTCMonth(), nowIST.getUTCDate() + 2, 0, 0, 0, 0) - istOffsetMs
-  ).toISOString();
-
-  // Label for next unlock (day after tomorrow in IST)
-  const nextUnlockIST = new Date(new Date(cutoff).getTime() + istOffsetMs);
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const nextUnlockLabel = `${nextUnlockIST.getUTCDate()} ${months[nextUnlockIST.getUTCMonth()]}`;
 
   const MATCH_SELECT = `id, kickoff_time, home_score, away_score, status, group_label, venue_city, venue_name, allow_late_predictions, prediction_deadline,
        home_nation:home_nation_id(id, name, flag_code, fifa_ranking),
@@ -101,8 +90,9 @@ export default async function PredictPage() {
   const { data: matchesRaw } = await supabase
     .from("matches")
     .select(MATCH_SELECT)
-    .or(`and(status.eq.scheduled,kickoff_time.gt.${now},kickoff_time.lte.${cutoff}),and(allow_late_predictions.eq.true,prediction_deadline.gt.${now},status.neq.finished)`)
-    .order("kickoff_time", { ascending: true });
+    .or(`and(status.eq.scheduled,kickoff_time.gt.${now}),and(allow_late_predictions.eq.true,prediction_deadline.gt.${now},status.neq.finished)`)
+    .order("kickoff_time", { ascending: true })
+    .limit(20);
 
   let matches: Match[] = (matchesRaw ?? []).map(mapMatch);
 
@@ -208,7 +198,6 @@ export default async function PredictPage() {
       existingPredictions={existingPredictions}
       leagueId={membership.league_id as string}
       roundLabel={roundLabels[roundName] ?? roundName}
-      nextUnlockLabel={nextUnlockLabel}
       checkpointPhasesByMatch={Object.fromEntries(phasesByMatch)}
       checkpointPicksByMatch={Object.fromEntries(picksByMatch)}
     />
