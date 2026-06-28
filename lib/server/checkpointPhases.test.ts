@@ -33,9 +33,14 @@ describe("computePhaseTransitions", () => {
     expect(a).toContainEqual({ phase: "h2", status: "open", opened: false });
   });
 
-  it("halftime scores h1 and locks h2 (B: editable through the first half)", () => {
+  it("halftime scores h1 but keeps h2 OPEN through the break", () => {
     const a = computePhaseTransitions([phase("h1", "closed"), phase("h2", "open")], detected({ stage: "halftime", home: 2, away: 1 }));
     expect(a).toContainEqual({ phase: "h1", status: "scored", actual_home: 2, actual_away: 1 });
+    expect(a.some((x) => x.phase === "h2")).toBe(false); // h2 not touched at half-time
+  });
+
+  it("2nd-half kickoff locks h2", () => {
+    const a = computePhaseTransitions([phase("h1", "scored"), phase("h2", "open")], detected({ stage: "second_half", home: 2, away: 1 }));
     expect(a).toContainEqual({ phase: "h2", status: "closed" });
   });
 

@@ -6,8 +6,8 @@
 //   h1  predicts the half-time score; opens pre-match (upfront), closes at
 //       kickoff, its boundary (actual) is captured at the half-time break.
 //   h2  predicts the 90' score; opens pre-match (upfront, alongside h1), stays
-//       editable through the first half, closes at half-time, boundary captured
-//       at full-time / start of extra time.
+//       editable through the first half AND the half-time break, closes at
+//       2nd-half kickoff, boundary captured at full-time / start of extra time.
 //   et  predicts the 120' score; opens at end of 90' ONLY if level, closes at
 //       ET start, boundary captured at end of ET.
 //   pens predicts the shootout tally; opens at end of ET ONLY if level, closes
@@ -78,12 +78,13 @@ export function computePhaseTransitions(
 
     case "halftime":
       score("h1", home, away); // the HT score is final now
-      close("h2"); // half-time reached — 90' prediction locks (had the first half to adjust)
+      // h2 (90' prediction) deliberately stays OPEN through the half-time break —
+      // players can adjust it during the interval; it locks at 2nd-half kickoff.
       break;
 
     case "second_half":
       close("h1"); // recovery: if HT was missed, still close (admin scores)
-      close("h2"); // recovery net — lock the 90' window if halftime was missed
+      close("h2"); // 2nd half kicked off — lock the 90' prediction now
       break;
 
     case "end_regulation":

@@ -86,20 +86,6 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
     });
   }
 
-  const rows = Array.from(memberMap.entries()).map(([userId, name]) => ({
-    userId,
-    name,
-    pred: predMap.get(userId) ?? null,
-    isMe: userId === user.id,
-  })).sort((a, b) => {
-    // Me first, then by points desc, then alpha
-    if (a.isMe) return -1;
-    if (b.isMe) return 1;
-    const ap = a.pred?.points ?? -1;
-    const bp = b.pred?.points ?? -1;
-    return bp - ap;
-  });
-
   // ── Live checkpoint reveals ────────────────────────────────────────────────
   // Each player's checkpoint picks are folded into their own card, but only for
   // phases that are LOCKED (closed/scored) — open windows stay hidden so picks
@@ -131,6 +117,22 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
     if (!cpByUser.has(pk.user_id)) cpByUser.set(pk.user_id, new Map());
     cpByUser.get(pk.user_id)!.set(pk.phase, pk);
   }
+
+  // Only list players who actually engaged with this match — a main prediction
+  // or at least one (revealed) checkpoint pick. Non-participants are hidden.
+  const rows = Array.from(memberMap.entries()).map(([userId, name]) => ({
+    userId,
+    name,
+    pred: predMap.get(userId) ?? null,
+    isMe: userId === user.id,
+  })).filter((r) => r.pred !== null || cpByUser.has(r.userId)).sort((a, b) => {
+    // Me first, then by points desc, then alpha
+    if (a.isMe) return -1;
+    if (b.isMe) return 1;
+    const ap = a.pred?.points ?? -1;
+    const bp = b.pred?.points ?? -1;
+    return bp - ap;
+  });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", backgroundColor: "var(--bg)" }}>
@@ -185,7 +187,7 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
       {/* Predictions list */}
       <div style={{ padding: "16px 16px 80px", display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n5)", marginBottom: 4 }}>
-          {rows.filter(r => r.pred).length} of {rows.length} members predicted
+          {rows.length} of {memberMap.size} members predicted
         </div>
 
         {/* Checkpoint results legend — actual score for each locked phase, once */}

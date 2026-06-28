@@ -27,7 +27,7 @@ export default async function HistoryPage() {
   const leagueId = membership.league_id as string;
   const leagueMemberId = membership.id as string;
 
-  const [predsResult, nationBonusResult] = await Promise.all([
+  const [predsResult, nationBonusResult, checkpointResult] = await Promise.all([
     supabase
       .from("predictions")
       .select(
@@ -42,12 +42,37 @@ export default async function HistoryPage() {
       .from("nation_bonus_points")
       .select("match_id, points")
       .eq("league_member_id", leagueMemberId),
+    // The user's own live-checkpoint picks (knockout matches only have these).
+    supabase
+      .from("live_checkpoint_predictions")
+      .select("match_id, phase, predicted_home, predicted_away, points")
+      .eq("user_id", user.id)
+      .eq("league_id", leagueId),
   ]);
 
   const nationBonusByMatch = new Map<number, number>();
   for (const row of (nationBonusResult.data ?? [])) {
     const matchId = row.match_id as number;
     nationBonusByMatch.set(matchId, (nationBonusByMatch.get(matchId) ?? 0) + (row.points as number));
+  }
+
+  // Group the user's checkpoint picks by match, ordered h1 → h2 → et → pens.
+  const PHASE_RANK: Record<string, number> = { h1: 0, h2: 1, et: 2, pens: 3 };
+  type HistCheckpoint = { phase: string; predicted_home: number; predicted_away: number; points: number | null };
+  const checkpointsByMatch = new Map<number, HistCheckpoint[]>();
+  for (const c of (checkpointResult.data ?? [])) {
+    const matchId = c.match_id as number;
+    const arr = checkpointsByMatch.get(matchId) ?? [];
+    arr.push({
+      phase: c.phase as string,
+      predicted_home: c.predicted_home as number,
+      predicted_away: c.predicted_away as number,
+      points: c.points as number | null,
+    });
+    checkpointsByMatch.set(matchId, arr);
+  }
+  for (const arr of checkpointsByMatch.values()) {
+    arr.sort((a, b) => (PHASE_RANK[a.phase] ?? 9) - (PHASE_RANK[b.phase] ?? 9));
   }
 
   const predictions: PredictionRecord[] = (predsResult.data ?? []).map((p) => {
@@ -69,6 +94,7 @@ export default async function HistoryPage() {
       predicted_away_score: p.predicted_away_score as number,
       points: p.points as number | null,
       nation_bonus: nationBonusByMatch.get(matchId) ?? null,
+      checkpoints: checkpointsByMatch.get(matchId) ?? [],
       match: {
         kickoff_time: m.kickoff_time,
         home_score: m.home_score,

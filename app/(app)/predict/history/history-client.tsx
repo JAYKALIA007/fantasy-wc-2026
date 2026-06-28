@@ -16,6 +16,13 @@ interface MatchInfo {
   away_nation: NationRef;
 }
 
+export interface CheckpointRecord {
+  phase: string;
+  predicted_home: number;
+  predicted_away: number;
+  points: number | null;
+}
+
 export interface PredictionRecord {
   id: string;
   match_id: number;
@@ -23,8 +30,11 @@ export interface PredictionRecord {
   predicted_away_score: number;
   points: number | null;
   nation_bonus: number | null;
+  checkpoints?: CheckpointRecord[];
   match: MatchInfo;
 }
+
+const CHECKPOINT_LABELS: Record<string, string> = { h1: "HT", h2: "90'", et: "ET", pens: "PEN" };
 
 interface MatchSummary {
   total: number;
@@ -513,6 +523,35 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
                   </div>
                 )}
               </div>
+
+              {/* Live checkpoint picks (knockout matches) */}
+              {p.checkpoints && p.checkpoints.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--n9)" }}>
+                  {p.checkpoints.map((c) => {
+                    const correct = (c.points ?? 0) > 0;
+                    return (
+                      <span key={c.phase} style={{
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        padding: "3px 8px", borderRadius: 7,
+                        background: correct ? "rgba(0,184,92,0.15)" : "var(--n9)",
+                        fontFamily: "var(--font-inter), sans-serif", fontSize: 11,
+                      }}>
+                        <b style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, color: correct ? "var(--g2)" : "var(--n5)", letterSpacing: 0.3 }}>
+                          {CHECKPOINT_LABELS[c.phase] ?? c.phase}
+                        </b>
+                        <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, color: "var(--n0)" }}>
+                          {c.predicted_home}–{c.predicted_away}
+                        </span>
+                        {c.points != null && (
+                          <span style={{ fontWeight: 800, color: correct ? "var(--g3)" : "var(--n6)" }}>
+                            {correct ? `+${c.points}` : "0"}
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             </Link>
           );

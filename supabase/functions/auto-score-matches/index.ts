@@ -228,11 +228,11 @@ function computePhaseTransitions(stored: StoredPhase[], detected: DetectedState)
       break;
     case "halftime":
       score("h1", home, away);
-      close("h2"); // B: 90' prediction locks at half-time
+      // h2 stays OPEN through the break — locks at 2nd-half kickoff.
       break;
     case "second_half":
       close("h1");
-      close("h2");
+      close("h2"); // 2nd half kicked off — lock the 90' prediction
       break;
     case "end_regulation":
       // 90' over and level → going to ET. Snapshot 90' boundary, open et.
