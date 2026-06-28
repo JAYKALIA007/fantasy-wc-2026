@@ -74,18 +74,13 @@ export default async function PredictPage() {
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const nextUnlockLabel = `${nextUnlockIST.getUTCDate()} ${months[nextUnlockIST.getUTCMonth()]}`;
 
-  const { data: matchesRaw } = await supabase
-    .from("matches")
-    .select(
-      `id, kickoff_time, home_score, away_score, status, group_label, venue_city, venue_name, allow_late_predictions, prediction_deadline,
+  const MATCH_SELECT = `id, kickoff_time, home_score, away_score, status, group_label, venue_city, venue_name, allow_late_predictions, prediction_deadline,
        home_nation:home_nation_id(id, name, flag_code, fifa_ranking),
        away_nation:away_nation_id(id, name, flag_code, fifa_ranking),
-       round:round_id(id, name)`
-    )
-    .or(`and(status.eq.scheduled,kickoff_time.gt.${now},kickoff_time.lte.${cutoff}),and(allow_late_predictions.eq.true,prediction_deadline.gt.${now},status.neq.finished)`)
-    .order("kickoff_time", { ascending: true });
+       round:round_id(id, name)`;
 
-  const matches: Match[] = (matchesRaw ?? []).map((m) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapMatch = (m: any): Match => ({
     id: m.id as number,
     kickoff_time: m.kickoff_time as string,
     home_score: m.home_score as number | null,
@@ -96,16 +91,41 @@ export default async function PredictPage() {
     venue_name: m.venue_name as string | null,
     allow_late_predictions: (m.allow_late_predictions as boolean) ?? false,
     prediction_deadline: (m.prediction_deadline as string | null) ?? null,
-    home_nation: Array.isArray(m.home_nation)
-      ? (m.home_nation[0] as Nation)
-      : (m.home_nation as Nation),
-    away_nation: Array.isArray(m.away_nation)
-      ? (m.away_nation[0] as Nation)
-      : (m.away_nation as Nation),
+    home_nation: Array.isArray(m.home_nation) ? (m.home_nation[0] as Nation) : (m.home_nation as Nation),
+    away_nation: Array.isArray(m.away_nation) ? (m.away_nation[0] as Nation) : (m.away_nation as Nation),
     round: Array.isArray(m.round)
       ? (m.round[0] as { id: string; name: string } | null)
       : (m.round as { id: string; name: string } | null),
-  }));
+  });
+
+  const { data: matchesRaw } = await supabase
+    .from("matches")
+    .select(MATCH_SELECT)
+    .or(`and(status.eq.scheduled,kickoff_time.gt.${now},kickoff_time.lte.${cutoff}),and(allow_late_predictions.eq.true,prediction_deadline.gt.${now},status.neq.finished)`)
+    .order("kickoff_time", { ascending: true });
+
+  const matches: Match[] = (matchesRaw ?? []).map(mapMatch);
+
+  // Keep live knockout matches visible: any match with an OPEN checkpoint phase
+  // must show on /predict even after kickoff (when it would otherwise drop off),
+  // so players can act on the in-play h2/et/pens windows.
+  const visibleIds = new Set(matches.map((m) => m.id));
+  const { data: openPhaseRows } = await supabase
+    .from("match_checkpoint_phases")
+    .select("match_id")
+    .eq("status", "open");
+  const liveMatchIds = [...new Set((openPhaseRows ?? []).map((r) => r.match_id as number))].filter(
+    (id) => !visibleIds.has(id)
+  );
+  if (liveMatchIds.length > 0) {
+    const { data: liveMatchesRaw } = await supabase
+      .from("matches")
+      .select(MATCH_SELECT)
+      .in("id", liveMatchIds)
+      .neq("status", "finished");
+    for (const m of liveMatchesRaw ?? []) matches.push(mapMatch(m));
+    matches.sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime());
+  }
 
   // Fetch existing predictions for these matches
   const matchIds = matches.map((m) => m.id);

@@ -4,6 +4,35 @@ import { scoreLiveCheckpoint } from "@/lib/server/liveCheckpoint";
 type Phase = "h1" | "h2" | "et" | "pens";
 type PhaseStatus = "pending" | "open" | "closed" | "scored";
 
+const PHASE_PUSH_LABEL: Record<Phase, string> = {
+  h1: "Half-time",
+  h2: "2nd-half",
+  et: "Extra-time",
+  pens: "Penalties",
+};
+
+// Fire a push when a live checkpoint window opens. Mirrors the cron's push.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fireWindowOpenPush(supabase: any, matchId: number, phase: Phase) {
+  const { data: match } = await supabase
+    .from("matches")
+    .select("home_nation:home_nation_id(name), away_nation:away_nation_id(name)")
+    .eq("id", matchId)
+    .maybeSingle();
+  const home = Array.isArray(match?.home_nation) ? match?.home_nation[0]?.name : match?.home_nation?.name;
+  const away = Array.isArray(match?.away_nation) ? match?.away_nation[0]?.name : match?.away_nation?.name;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://fantasy-wc-2026-ashy.vercel.app";
+  void fetch(`${siteUrl}/api/push/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
+    body: JSON.stringify({
+      title: `⚽ ${PHASE_PUSH_LABEL[phase]} predictions open`,
+      body: `${home ?? "Match"} vs ${away ?? ""} — predict the next checkpoint now.`,
+      url: "/predict",
+    }),
+  }).catch(() => {});
+}
+
 interface CheckpointPhaseBody {
   match_id: number;
   phase: Phase;
@@ -58,7 +87,16 @@ export async function POST(request: Request) {
   const now = new Date().toISOString();
 
   if (action === "open") {
-    // Upsert phase row with status=open
+    // Only push if this is a genuine open transition (not a re-open of an
+    // already-open window) and it's a LIVE window (h2/et/pens, never h1).
+    const { data: prev } = await supabase
+      .from("match_checkpoint_phases")
+      .select("status")
+      .eq("match_id", match_id)
+      .eq("phase", phase)
+      .maybeSingle();
+    const wasOpen = prev?.status === "open";
+
     const { error } = await supabase
       .from("match_checkpoint_phases")
       .upsert(
@@ -66,6 +104,10 @@ export async function POST(request: Request) {
         { onConflict: "match_id,phase" }
       );
     if (error) return Response.json({ error: error.message }, { status: 500 });
+
+    if (!wasOpen && phase !== "h1") {
+      await fireWindowOpenPush(supabase, match_id, phase);
+    }
     return Response.json({ ok: true });
   }
 
