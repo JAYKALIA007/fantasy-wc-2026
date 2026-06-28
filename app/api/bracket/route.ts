@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { ROUND_IDS } from "@/lib/constants";
+import { ROUND_IDS, BRACKET_LOCK_LEAD_MS } from "@/lib/constants";
 
 interface BracketBody {
   picks: { match_id: number; advancer_nation_id: number }[];
@@ -42,8 +42,8 @@ export async function POST(request: Request) {
     const t = new Date(m.kickoff_time as string).getTime();
     return min === null || t < min ? t : min;
   }, null);
-  if (earliest !== null && Date.now() >= earliest) {
-    return Response.json({ error: "Bracket is locked — the Round of 32 has started" }, { status: 403 });
+  if (earliest !== null && Date.now() >= earliest - BRACKET_LOCK_LEAD_MS) {
+    return Response.json({ error: "Bracket is locked" }, { status: 403 });
   }
 
   // Validate every pick: match exists and advancer is one of its two teams.

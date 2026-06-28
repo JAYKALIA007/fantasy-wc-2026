@@ -9,6 +9,7 @@ import { FLAG_EMOJI } from "@/lib/utils/flags";
 import { toIST, toISTWithDay } from "@/lib/utils/date";
 import type { Nation } from "@/lib/types";
 import { computeLeaderboard } from "@/lib/server/leaderboard";
+import { BRACKET_LOCK_LEAD_MS } from "@/lib/constants";
 
 interface Match {
   id: number;
@@ -158,7 +159,9 @@ export default async function HomePage() {
     supabase.from("matches").select("kickoff_time").eq("round_id", RO32_ROUND_ID).order("kickoff_time", { ascending: true }).limit(1),
     supabase.from("ro32_bracket_picks").select("id", { count: "exact", head: true }).eq("league_id", leagueId).eq("user_id", user.id),
   ]);
-  const bracketLockAt = ro32Kickoffs && ro32Kickoffs[0] ? (ro32Kickoffs[0].kickoff_time as string) : null;
+  const bracketLockAt = ro32Kickoffs && ro32Kickoffs[0]
+    ? new Date(new Date(ro32Kickoffs[0].kickoff_time as string).getTime() - BRACKET_LOCK_LEAD_MS).toISOString()
+    : null;
   const bracketLocked = bracketLockAt ? new Date() >= new Date(bracketLockAt) : true;
   const myBracketPicks = myBracketCount ?? 0;
   // Show while editable (submit/finish) OR after lock if they took part (view results).

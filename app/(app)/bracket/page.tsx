@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import BracketClient from "./bracket-client";
-import { ROUND_IDS } from "@/lib/constants";
+import { ROUND_IDS, BRACKET_LOCK_LEAD_MS } from "@/lib/constants";
 import { resolveAdvancers, scoreBracket, type BracketTie } from "@/lib/server/bracket";
 
 type NationRef = { id: number; name: string };
@@ -34,8 +34,9 @@ export default async function BracketPage() {
     return { id: m.id as number, kickoff_time: m.kickoff_time as string, home, away };
   });
 
-  const earliestKickoff = matches.length > 0 ? matches[0].kickoff_time : null;
-  const locked = earliestKickoff ? new Date() >= new Date(earliestKickoff) : false;
+  // Bracket locks BRACKET_LOCK_LEAD_MS before the first match (midnight IST).
+  const lockAt = matches.length > 0 ? new Date(new Date(matches[0].kickoff_time).getTime() - BRACKET_LOCK_LEAD_MS).toISOString() : null;
+  const locked = lockAt ? new Date() >= new Date(lockAt) : false;
 
   // This user's existing picks.
   const { data: myPicksRaw } = await supabase
@@ -84,7 +85,7 @@ export default async function BracketPage() {
       matches={matches}
       myPicks={myPicks}
       locked={locked}
-      lockAt={earliestKickoff}
+      lockAt={lockAt}
       standings={standings}
       resolvedCount={resolvedCount}
       advancers={Object.fromEntries(advancers)}

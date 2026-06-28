@@ -13,3 +13,8 @@ export const ROUND_IDS = {
 
 // Size of the RO32 re-draft primary pool (top N survivors by FIFA ranking).
 export const RO32_PRIMARY_POOL_SIZE = 12;
+
+// Bracket picks lock this long before the first knockout match kicks off
+// (30 min → midnight 00:00 IST when the first match is 00:30 IST), matching the
+// re-draft window close.
+export const BRACKET_LOCK_LEAD_MS = 30 * 60 * 1000;

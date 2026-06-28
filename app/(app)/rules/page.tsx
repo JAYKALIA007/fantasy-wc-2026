@@ -57,6 +57,22 @@ export default async function RulesPage() {
         </div>
       </Section>
 
+      {/* Live in-play predictions */}
+      <Section title="⏱️  Live in-play predictions">
+        <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 10px", lineHeight: 1.5 }}>
+          Knockout matches only. As the match unfolds you get bonus predictions of the <strong style={{ color: "var(--n0)" }}>exact running score</strong> at each checkpoint. Each is exact-only.
+        </p>
+        <Row label="Half-time score" value="+2 pts" sub="Locks at kickoff" />
+        <Row label="Full-time (90′) score" value="+2 pts" sub="Locks when the 2nd half starts" />
+        <Row label="Extra-time (120′) score" value="+2 pts" sub="Only if level after 90′" />
+        <Row label="Penalty shootout tally" value="+2 pts" sub="Only if level after extra time" />
+        <div style={{ padding: "8px 0 2px" }}>
+          <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>
+            🔒 Each checkpoint pick is hidden from other players until its window closes. Only an exact match scores — close doesn&apos;t count.
+          </p>
+        </div>
+      </Section>
+
       {/* Nation picking */}
       <Section title="🏳️  Nation picks">
         <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 10px", lineHeight: 1.5 }}>
@@ -120,10 +136,23 @@ export default async function RulesPage() {
         </div>
       </Section>
 
+      {/* Knockout bracket */}
+      <Section title="🏆  Knockout bracket">
+        <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 10px", lineHeight: 1.5 }}>
+          A separate side contest. Before each knockout round starts, predict <strong style={{ color: "var(--n0)" }}>who advances</strong> in every tie — including teams that go through on penalties.
+        </p>
+        <Row label="Each correct call" value="+1" sub="Most correct picks tops the bracket standings" />
+        <div style={{ padding: "8px 0 2px" }}>
+          <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>
+            🔒 Picks lock 30 minutes before the first match of the round. Bracket standings are tracked separately from the main leaderboard.
+          </p>
+        </div>
+      </Section>
+
       {/* Leaderboard */}
       <Section title="🏅  Leaderboard">
         <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: 0, lineHeight: 1.6 }}>
-          Your total score = <strong style={{ color: "var(--n0)" }}>prediction points</strong> + <strong style={{ color: "var(--n0)" }}>nation bonus</strong> + <strong style={{ color: "var(--n0)" }}>progression bonus</strong> − <strong style={{ color: "var(--n0)" }}>swap penalties</strong>. The Ranks page breaks this down per player.
+          Your total score = <strong style={{ color: "var(--n0)" }}>prediction points</strong> + <strong style={{ color: "var(--n0)" }}>live predictions</strong> + <strong style={{ color: "var(--n0)" }}>nation bonus</strong> + <strong style={{ color: "var(--n0)" }}>progression bonus</strong> − <strong style={{ color: "var(--n0)" }}>swap penalties</strong>. The Ranks page breaks this down per player. The knockout bracket is scored separately.
         </p>
       </Section>
     </div>
