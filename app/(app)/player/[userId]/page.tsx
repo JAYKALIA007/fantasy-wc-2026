@@ -1,6 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import HistoryClient, { type PredictionRecord } from "@/app/(app)/predict/history/history-client";
+import HistoryClient, { type PredictionRecord, type CheckpointRecord } from "@/app/(app)/predict/history/history-client";
 import type { NationRef } from "@/lib/types";
 import { computeLeaderboard } from "@/lib/server/leaderboard";
 import { currentHolding, type HoldingRow } from "@/lib/server/holdings";
@@ -89,6 +89,7 @@ export default async function PlayerPredictionsPage({
         predictions: targetRow.prediction_points,
         nationBonus: targetRow.nation_bonus,
         progressionBonus: targetRow.progression_bonus,
+        liveCheckpoint: targetRow.live_checkpoint_points,
         swapPenalty: targetRow.swap_penalty,
         total: targetRow.total_points,
       }
@@ -113,6 +114,31 @@ export default async function PlayerPredictionsPage({
     .eq("user_id", targetUserId)
     .eq("league_id", leagueId);
 
+  // This player's checkpoint picks. RLS only returns other players' picks for
+  // phases whose window has CLOSED/SCORED, so live (open) picks stay hidden.
+  const { data: cpRaw } = await supabase
+    .from("live_checkpoint_predictions")
+    .select("match_id, phase, predicted_home, predicted_away, points")
+    .eq("user_id", targetUserId)
+    .eq("league_id", leagueId);
+
+  const PHASE_RANK: Record<string, number> = { h1: 0, h2: 1, et: 2, pens: 3 };
+  const checkpointsByMatch = new Map<number, CheckpointRecord[]>();
+  for (const c of (cpRaw ?? [])) {
+    const mid = c.match_id as number;
+    const arr = checkpointsByMatch.get(mid) ?? [];
+    arr.push({
+      phase: c.phase as string,
+      predicted_home: c.predicted_home as number,
+      predicted_away: c.predicted_away as number,
+      points: c.points as number | null,
+    });
+    checkpointsByMatch.set(mid, arr);
+  }
+  for (const arr of checkpointsByMatch.values()) {
+    arr.sort((a, b) => (PHASE_RANK[a.phase] ?? 9) - (PHASE_RANK[b.phase] ?? 9));
+  }
+
   type MatchRaw = {
     kickoff_time: string;
     home_score: number | null;
@@ -124,7 +150,7 @@ export default async function PlayerPredictionsPage({
   };
 
   const predictions: PredictionRecord[] = (predsRaw ?? [])
-    .map((p) => {
+    .map((p): PredictionRecord | null => {
       const matchRaw = Array.isArray(p.match) ? p.match[0] : p.match;
       if (!matchRaw) return null;
       const m = matchRaw as MatchRaw;
@@ -138,6 +164,7 @@ export default async function PlayerPredictionsPage({
         predicted_away_score: p.predicted_away_score as number,
         points: p.points as number | null,
         nation_bonus: nationBonusByMatch.get(matchId) ?? null,
+        checkpoints: checkpointsByMatch.get(matchId) ?? [],
         match: {
           kickoff_time: m.kickoff_time,
           home_score: m.home_score,
