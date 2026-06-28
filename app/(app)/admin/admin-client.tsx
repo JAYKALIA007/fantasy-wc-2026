@@ -1186,7 +1186,7 @@ export function AdminClient({
                   )}
 
                   {/* Checkpoint phases — only for RO32 matches (past kickoff) */}
-                  {isRo32 && isPast && (() => {
+                  {isRo32 && (isPast || (checkpointPhases[m.id]?.length ?? 0) > 0) && !isFinished && (() => {
                     const phases = checkpointPhases[m.id] ?? [];
                     // Always show h1; show h2/et/pens only if they exist
                     const PHASE_LABELS: Record<string, string> = { h1: "HT (h1)", h2: "90' (h2)", et: "ET", pens: "Pens" };
