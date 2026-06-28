@@ -17,11 +17,13 @@ export interface LeaderboardRow {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseLike = { from: (table: string) => any };
 
+// roundId null = cumulative prediction points across ALL rounds (tournament-long
+// total). Pass a specific round id to scope prediction points to that round.
 export async function computeLeaderboard(
   supabase: SupabaseLike,
   leagueId: string,
   adminUserId: string | null,
-  roundId: string = ROUND_ID
+  roundId: string | null = null
 ): Promise<LeaderboardRow[]> {
   const { data: allMembersRaw } = await supabase
     .from("league_members")
@@ -34,13 +36,13 @@ export async function computeLeaderboard(
   );
 
   const emptyRows = Promise.resolve({ data: [] as { league_member_id: string; points: number }[] });
+  const predictionsQuery = supabase
+    .from("predictions")
+    .select("user_id, points, matches!inner(status, round_id)")
+    .eq("league_id", leagueId)
+    .eq("matches.status", "finished");
   const [finishedPredsResult, bonusResult, progressionResult, penaltyResult] = await Promise.all([
-    supabase
-      .from("predictions")
-      .select("user_id, points, matches!inner(status, round_id)")
-      .eq("league_id", leagueId)
-      .eq("matches.status", "finished")
-      .eq("matches.round_id", roundId),
+    roundId ? predictionsQuery.eq("matches.round_id", roundId) : predictionsQuery,
     memberIds.length > 0
       ? supabase
           .from("nation_bonus_points")

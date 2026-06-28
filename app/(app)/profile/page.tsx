@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { FLAG_EMOJI } from "@/lib/utils/flags";
-import { ROUND_ID } from "@/lib/constants";
 import { computeLeaderboard } from "@/lib/server/leaderboard";
 import type { NationRef } from "@/lib/types";
 
@@ -36,7 +35,7 @@ export default async function ProfilePage() {
 
   const adminUserId = leagueResult.data?.creator_id as string | null;
 
-  const leaderboardRows = await computeLeaderboard(supabase, leagueId, adminUserId, ROUND_ID);
+  const leaderboardRows = await computeLeaderboard(supabase, leagueId, adminUserId, null);
 
   const myRow = leaderboardRows.find(r => r.user_id === user.id);
   const myRank = myRow ? leaderboardRows.indexOf(myRow) + 1 : leaderboardRows.length + 1;
