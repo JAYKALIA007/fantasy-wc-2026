@@ -7,7 +7,7 @@ import { toISTWithDay } from "@/lib/utils/date";
 
 type Nation = { id: number; name: string; fifa_ranking: number | null };
 
-const PRIMARY_SWAP_COST = 5;
+const PRIMARY_SWAP_COST = 3;
 
 type Props = {
   leagueId: string;

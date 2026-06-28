@@ -104,7 +104,7 @@ export default async function RulesPage() {
 
         <div style={{ height: 12 }} />
         <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>Cost to swap</p>
-        <Row label="RO32 reset — Primary" value="−5 pts" />
+        <Row label="RO32 reset — Primary" value="−3 pts" />
         <Row label="RO32 reset — Secondary" value="Free" sub="Switch your wildcard at no cost" />
         <Row label="RO16" value="−5 pts" />
         <Row label="Quarter-finals" value="−8 pts" />
