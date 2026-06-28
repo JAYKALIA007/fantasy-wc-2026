@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { holdingForRound, type HoldingRow } from "@/lib/server/holdings";
 
 interface MatchScoreBody {
   match_id: number;
@@ -157,6 +158,35 @@ export async function POST(request: Request) {
     );
   }
 
+  // Resolve each member's effective held team for THIS match's round. After the
+  // RO32 re-draft, the redrafted team — not the group pick — earns the nation
+  // bonus. Members who never redrafted carry their group pick forward.
+  const memberIds = (leagueMembers ?? []).map((m) => m.id as string);
+  const holdingsByMember = new Map<string, HoldingRow[]>();
+  if (memberIds.length > 0) {
+    const { data: holdingRows, error: holdingsError } = await supabase
+      .from("member_round_teams")
+      .select("league_member_id, round_id, primary_nation_id, secondary_nation_id")
+      .in("league_member_id", memberIds)
+      .eq("round_id", match.round_id);
+    if (holdingsError) {
+      return Response.json(
+        { error: `Failed to load re-draft holdings for nation bonus: ${holdingsError.message}` },
+        { status: 500 }
+      );
+    }
+    for (const h of holdingRows ?? []) {
+      const mid = h.league_member_id as string;
+      const arr = holdingsByMember.get(mid) ?? [];
+      arr.push({
+        round_id: h.round_id as string,
+        primary_nation_id: h.primary_nation_id as number | null,
+        secondary_nation_id: h.secondary_nation_id as number | null,
+      });
+      holdingsByMember.set(mid, arr);
+    }
+  }
+
   // Build bonus records
   const bonusRecords: {
     league_member_id: string;
@@ -168,8 +198,16 @@ export async function POST(request: Request) {
 
   for (const member of leagueMembers ?? []) {
     const memberId = member.id as string;
-    const primaryNationId = member.primary_nation_id as number | null;
-    const secondaryNationId = member.secondary_nation_id as number | null;
+    const held = holdingForRound(
+      {
+        primary_nation_id: member.primary_nation_id as number | null,
+        secondary_nation_id: member.secondary_nation_id as number | null,
+      },
+      holdingsByMember.get(memberId) ?? [],
+      match.round_id as string
+    );
+    const primaryNationId = held.primary_nation_id;
+    const secondaryNationId = held.secondary_nation_id;
 
     // Check primary nation
     if (primaryNationId !== null) {

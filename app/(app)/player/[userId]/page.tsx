@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import HistoryClient, { type PredictionRecord } from "@/app/(app)/predict/history/history-client";
 import type { NationRef } from "@/lib/types";
 import { computeLeaderboard } from "@/lib/server/leaderboard";
+import { currentHolding, type HoldingRow } from "@/lib/server/holdings";
 
 export default async function PlayerPredictionsPage({
   params,
@@ -32,11 +33,7 @@ export default async function PlayerPredictionsPage({
   // Verify target user is in the same league and get their profile name + nation picks
   const { data: targetMember } = await supabase
     .from("league_members")
-    .select(
-      `id, profile_name,
-       primary_nation:primary_nation_id(name, flag_code),
-       secondary_nation:secondary_nation_id(name, flag_code)`
-    )
+    .select(`id, profile_name, primary_nation_id, secondary_nation_id`)
     .eq("user_id", targetUserId)
     .eq("league_id", leagueId)
     .maybeSingle();
@@ -45,12 +42,34 @@ export default async function PlayerPredictionsPage({
 
   const profileName = targetMember.profile_name as string;
   const memberId = targetMember.id as string;
-  const primaryNation = (Array.isArray(targetMember.primary_nation)
-    ? targetMember.primary_nation[0]
-    : targetMember.primary_nation) as NationRef | null;
-  const secondaryNation = (Array.isArray(targetMember.secondary_nation)
-    ? targetMember.secondary_nation[0]
-    : targetMember.secondary_nation) as NationRef | null;
+
+  // Resolve the team(s) this player currently holds — their latest re-draft
+  // holding if they have redrafted, else their group-stage pick.
+  let held = {
+    primary_nation_id: (targetMember.primary_nation_id as number | null) ?? null,
+    secondary_nation_id: (targetMember.secondary_nation_id as number | null) ?? null,
+  };
+  const { data: targetHoldings } = await supabase
+    .from("member_round_teams")
+    .select("round_id, primary_nation_id, secondary_nation_id")
+    .eq("league_member_id", memberId);
+  held = currentHolding(held, (targetHoldings ?? []) as HoldingRow[]);
+
+  const heldIds = [held.primary_nation_id, held.secondary_nation_id].filter(
+    (id): id is number => id !== null
+  );
+  const heldNationMap = new Map<number, NationRef>();
+  if (heldIds.length > 0) {
+    const { data: heldNations } = await supabase
+      .from("nations")
+      .select("id, name, flag_code")
+      .in("id", heldIds);
+    for (const n of heldNations ?? []) {
+      heldNationMap.set(n.id as number, { name: n.name as string, flag_code: n.flag_code as string });
+    }
+  }
+  const primaryNation = held.primary_nation_id ? heldNationMap.get(held.primary_nation_id) ?? null : null;
+  const secondaryNation = held.secondary_nation_id ? heldNationMap.get(held.secondary_nation_id) ?? null : null;
   const now = new Date().toISOString();
 
   // Fetch nation bonus (total + per-match) for this member

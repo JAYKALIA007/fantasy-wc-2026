@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { FLAG_EMOJI } from "@/lib/utils/flags";
+import { currentHolding, type HoldingRow } from "@/lib/server/holdings";
 
 export default async function NationPage() {
   const supabase = await createClient();
@@ -16,11 +17,24 @@ export default async function NationPage() {
     .eq("user_id", user.id)
     .maybeSingle();
 
+  // Resolve the team(s) currently held — the latest re-draft holding if the
+  // member has redrafted, else their group-stage pick.
+  let held = {
+    primary_nation_id: (membership?.primary_nation_id as number | null) ?? null,
+    secondary_nation_id: (membership?.secondary_nation_id as number | null) ?? null,
+  };
+  if (membership?.id) {
+    const { data: holdings } = await supabase
+      .from("member_round_teams")
+      .select("round_id, primary_nation_id, secondary_nation_id")
+      .eq("league_member_id", membership.id);
+    held = currentHolding(held, (holdings ?? []) as HoldingRow[]);
+  }
+
   // Fetch nation names
-  const nationIds = [
-    membership?.primary_nation_id,
-    membership?.secondary_nation_id,
-  ].filter((id): id is number => id !== null);
+  const nationIds = [held.primary_nation_id, held.secondary_nation_id].filter(
+    (id): id is number => id !== null
+  );
 
   const nationMap = new Map<number, { name: string; fifa_ranking: number | null }>();
   if (nationIds.length > 0) {
@@ -43,8 +57,8 @@ export default async function NationPage() {
     totalBonusPoints = (bonuses ?? []).reduce((sum, b) => sum + (b.points as number), 0);
   }
 
-  const primaryNation = membership?.primary_nation_id ? nationMap.get(membership.primary_nation_id) : null;
-  const secondaryNation = membership?.secondary_nation_id ? nationMap.get(membership.secondary_nation_id) : null;
+  const primaryNation = held.primary_nation_id ? nationMap.get(held.primary_nation_id) : null;
+  const secondaryNation = held.secondary_nation_id ? nationMap.get(held.secondary_nation_id) : null;
 
   return (
     <div

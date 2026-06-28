@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { FLAG_EMOJI } from "@/lib/utils/flags";
 import { computeLeaderboard } from "@/lib/server/leaderboard";
+import { currentHolding, type HoldingRow } from "@/lib/server/holdings";
 import type { NationRef } from "@/lib/types";
 
 export default async function ProfilePage() {
@@ -13,9 +14,7 @@ export default async function ProfilePage() {
 
   const { data: membership } = await supabase
     .from("league_members")
-    .select(`league_id, profile_name,
-      primary_nation:primary_nation_id(name, flag_code),
-      secondary_nation:secondary_nation_id(name, flag_code)`)
+    .select(`id, league_id, profile_name, primary_nation_id, secondary_nation_id`)
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -24,8 +23,33 @@ export default async function ProfilePage() {
   const leagueId = membership.league_id as string;
   const profileName = membership.profile_name as string;
 
-  const primaryNation = (Array.isArray(membership.primary_nation) ? membership.primary_nation[0] : membership.primary_nation) as NationRef | null;
-  const secondaryNation = (Array.isArray(membership.secondary_nation) ? membership.secondary_nation[0] : membership.secondary_nation) as NationRef | null;
+  // Resolve the team(s) currently held — the latest re-draft holding if the
+  // member has redrafted, else their group-stage pick.
+  let held = {
+    primary_nation_id: (membership.primary_nation_id as number | null) ?? null,
+    secondary_nation_id: (membership.secondary_nation_id as number | null) ?? null,
+  };
+  const { data: holdings } = await supabase
+    .from("member_round_teams")
+    .select("round_id, primary_nation_id, secondary_nation_id")
+    .eq("league_member_id", membership.id);
+  held = currentHolding(held, (holdings ?? []) as HoldingRow[]);
+
+  const heldIds = [held.primary_nation_id, held.secondary_nation_id].filter(
+    (id): id is number => id !== null
+  );
+  const nationMap = new Map<number, NationRef>();
+  if (heldIds.length > 0) {
+    const { data: nations } = await supabase
+      .from("nations")
+      .select("id, name, flag_code")
+      .in("id", heldIds);
+    for (const n of nations ?? []) {
+      nationMap.set(n.id as number, { name: n.name as string, flag_code: n.flag_code as string });
+    }
+  }
+  const primaryNation = held.primary_nation_id ? nationMap.get(held.primary_nation_id) ?? null : null;
+  const secondaryNation = held.secondary_nation_id ? nationMap.get(held.secondary_nation_id) ?? null : null;
 
   const [leagueResult, predsResult] = await Promise.all([
     supabase.from("leagues").select("creator_id").eq("id", leagueId).maybeSingle(),
