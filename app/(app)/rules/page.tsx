@@ -60,10 +60,10 @@ export default async function RulesPage() {
       {/* Live in-play predictions */}
       <Section title="⏱️  Live in-play predictions">
         <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 10px", lineHeight: 1.5 }}>
-          Knockout matches only. As the match unfolds you get bonus predictions of the <strong style={{ color: "var(--n0)" }}>exact running score</strong> at each checkpoint. Each is exact-only.
+          Knockout matches only. Bonus predictions of the <strong style={{ color: "var(--n0)" }}>exact running score</strong> at each checkpoint — each exact-only. Half-time and full-time are open <strong style={{ color: "var(--n0)" }}>before kickoff</strong>; extra-time and penalties only appear if the match gets there.
         </p>
-        <Row label="Half-time score" value="+2 pts" sub="Locks at kickoff" />
-        <Row label="Full-time (90′) score" value="+2 pts" sub="Locks when the 2nd half starts" />
+        <Row label="Half-time score" value="+2 pts" sub="Set before kickoff · locks at kickoff" />
+        <Row label="Full-time (90′) score" value="+2 pts" sub="Set before kickoff · locks at half-time" />
         <Row label="Extra-time (120′) score" value="+2 pts" sub="Only if level after 90′" />
         <Row label="Penalty shootout tally" value="+2 pts" sub="Only if level after extra time" />
         <div style={{ padding: "8px 0 2px" }}>
