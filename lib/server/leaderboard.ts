@@ -74,12 +74,17 @@ export async function computeLeaderboard(
         .select("league_member_id, points")
         .in("league_member_id", memberIds);
 
-  // Swap penalties — has a round_id column directly.
-  let penaltyQuery = supabase
-    .from("swap_penalties")
-    .select("league_member_id, amount")
-    .in("league_member_id", memberIds);
-  if (roundId) penaltyQuery = penaltyQuery.eq("round_id", roundId);
+  // Swap penalties — EXCLUDED from per-round views. The redraft (and its cost)
+  // is paid at the redraft window before the round's first match kicks off, so
+  // like the progression bonus it is a between-rounds event, not points scored
+  // in-round. A per-round standing is gross match points only; the redraft cost
+  // appears in the cumulative Overall standing.
+  const penaltyQuery = roundId
+    ? Promise.resolve({ data: [] as { league_member_id: string; amount: number }[] })
+    : supabase
+        .from("swap_penalties")
+        .select("league_member_id, amount")
+        .in("league_member_id", memberIds);
 
   // Live checkpoints — scoped by the match's round (only join when scoping).
   const liveQuery = roundId

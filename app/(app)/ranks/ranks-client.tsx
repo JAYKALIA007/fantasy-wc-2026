@@ -373,7 +373,7 @@ export default function RanksClient({
 
         {view === "ro32" && (
           <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n5)", paddingLeft: 4 }}>
-            RO32 round only — predictions, nation bonus, live checkpoints & redraft penalties for this round.
+            RO32 round only — match points from predictions, nation bonus & live checkpoints. Excludes progression bonus & redraft penalties (clean slate at kickoff).
           </div>
         )}
 

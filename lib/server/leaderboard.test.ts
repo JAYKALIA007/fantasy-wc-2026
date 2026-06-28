@@ -61,7 +61,7 @@ describe("computeLeaderboard", () => {
     expect(u2.finished_prediction_count).toBe(1);
   });
 
-  it("excludes progression bonus from a per-round (roundId set) standing", async () => {
+  it("excludes progression bonus and swap penalty from a per-round (roundId set) standing", async () => {
     const supabase = mockSupabase({
       league_members: [
         { id: "m1", user_id: "u1", profile_name: "Alice", primary_nation_id: 1, joined_at: "2026-06-14T00:00:00Z" },
@@ -85,10 +85,12 @@ describe("computeLeaderboard", () => {
 
     const u1 = rows.find((r) => r.user_id === "u1")!;
     const u2 = rows.find((r) => r.user_id === "u2")!;
-    // u1 = 10 + 3 − 5 = 8 (no +10 progression) ; u2 = 5 (no +20 progression)
+    // Gross match points only: u1 = 10 + 3 = 13 (no +10 progression, no −5
+    // swap penalty) ; u2 = 5 (no +20 progression)
     expect(u1.progression_bonus).toBe(0);
     expect(u2.progression_bonus).toBe(0);
-    expect(u1.total_points).toBe(8);
+    expect(u1.swap_penalty).toBe(0);
+    expect(u1.total_points).toBe(13);
     expect(u2.total_points).toBe(5);
   });
 
