@@ -2,28 +2,53 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ backgroundColor: "var(--surf)", borderRadius: 16, padding: "18px 16px", boxShadow: "var(--sh-sm)" }}>
-      <h2 style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 13, color: "var(--n0)", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 14px" }}>
-        {title}
-      </h2>
-      {children}
-    </div>
-  );
-}
-
 function Row({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--n8)" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--n8)" }}>
       <div>
         <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 14, color: "var(--n0)", margin: 0 }}>{label}</p>
         {sub && <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: "2px 0 0" }}>{sub}</p>}
       </div>
-      <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 15, color: "var(--g2)" }}>{value}</span>
+      <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 15, color: "var(--g2)", marginLeft: 12, flexShrink: 0 }}>{value}</span>
     </div>
   );
 }
+
+const sectionStyle: React.CSSProperties = {
+  backgroundColor: "var(--surf)",
+  borderRadius: 16,
+  boxShadow: "var(--sh-sm)",
+  overflow: "hidden",
+};
+
+const summaryStyle: React.CSSProperties = {
+  padding: "14px 16px",
+  fontFamily: "var(--font-saira), sans-serif",
+  fontWeight: 800,
+  fontSize: 13,
+  color: "var(--n0)",
+  textTransform: "uppercase",
+  letterSpacing: 1,
+  cursor: "pointer",
+  listStyle: "none",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  userSelect: "none",
+};
+
+const bodyStyle: React.CSSProperties = {
+  padding: "0 16px 16px",
+  borderTop: "1px solid var(--n8)",
+};
+
+const note: React.CSSProperties = {
+  fontFamily: "var(--font-inter), sans-serif",
+  fontSize: 12,
+  color: "var(--n5)",
+  margin: "8px 0 0",
+  lineHeight: 1.5,
+};
 
 export default async function RulesPage() {
   const supabase = await createClient();
@@ -31,7 +56,7 @@ export default async function RulesPage() {
   if (!user) redirect("/join");
 
   return (
-    <div style={{ padding: "16px 14px 32px", display: "flex", flexDirection: "column", gap: 14, maxWidth: 480, margin: "0 auto" }}>
+    <div style={{ padding: "16px 14px 32px", display: "flex", flexDirection: "column", gap: 10, maxWidth: 480, margin: "0 auto" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
         <Link href="/predict" style={{ color: "var(--n5)", textDecoration: "none", fontSize: 20, lineHeight: 1 }}>←</Link>
@@ -40,156 +65,103 @@ export default async function RulesPage() {
         </h1>
       </div>
 
-      {/* Predictions */}
-      <Section title="⚽  Predictions">
-        <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 10px", lineHeight: 1.5 }}>
-          Predict the scoreline for every match before kickoff. Points are awarded based on accuracy.
-        </p>
-        <Row label="Correct result" value="+1 pt" sub="Right winner or draw, wrong scoreline" />
-        <Row label="Exact score" value="+3 pts" sub="Right scoreline — home and away goals" />
-        <div style={{ padding: "10px 0", display: "flex", flexDirection: "column", gap: 8 }}>
-          <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>
-            ⏱ Predictions lock at kickoff. Submit before the match starts.
-          </p>
-          <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>
-            ⚡ Occasionally the admin may open a short late window after kickoff — look for the gold countdown chip on the predict screen.
-          </p>
+      {/* Predictions — open by default */}
+      <details open style={sectionStyle}>
+        <summary style={summaryStyle}>⚽ Predictions <span style={{ color: "var(--n6)", fontSize: 16 }}>›</span></summary>
+        <div style={bodyStyle}>
+          <Row label="Correct result" value="+1 pt" sub="Right winner or draw, wrong score" />
+          <Row label="Exact score" value="+3 pts" sub="Right scoreline" />
+          <p style={note}>Locks at kickoff. Admin can open a short late window — look for the ⚡ chip.</p>
         </div>
-      </Section>
+      </details>
 
-      {/* Live in-play predictions */}
-      <Section title="⏱️  Live in-play predictions">
-        <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 10px", lineHeight: 1.5 }}>
-          Knockout matches only. Bonus predictions of the <strong style={{ color: "var(--n0)" }}>exact running score</strong> at each checkpoint — exact only. Half-time and full-time are open <strong style={{ color: "var(--n0)" }}>before kickoff</strong>. Extra-time only opens if it&apos;s level after 90 minutes; penalties only if still level after extra-time.
-        </p>
-        <Row label="Half-time score" value="+2 pts" sub="Set before kickoff · locks at kickoff" />
-        <Row label="Full-time (90′) score" value="+2 pts" sub="Set before kickoff · locks at half-time" />
-        <Row label="Extra-time (120′) score" value="+2 pts" sub="Only if level after 90′" />
-        <Row label="Penalty shootout tally" value="+2 pts" sub="Only if level after extra time" />
-        <div style={{ padding: "8px 0 2px" }}>
-          <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>
-            🔒 Each checkpoint pick is hidden from other players until its window closes. Only an exact match scores — close doesn&apos;t count.
-          </p>
+      {/* Live in-play */}
+      <details style={sectionStyle}>
+        <summary style={summaryStyle}>⏱️ Live in-play <span style={{ color: "var(--n6)", fontSize: 16 }}>›</span></summary>
+        <div style={bodyStyle}>
+          <p style={{ ...note, margin: "8px 0 4px" }}>Knockout matches only. Exact score only — close doesn&apos;t count.</p>
+          <Row label="Half-time score" value="+2 pts" sub="Locks at kickoff" />
+          <Row label="90′ score" value="+2 pts" sub="Locks at half-time" />
+          <Row label="Extra-time score" value="+2 pts" sub="Only if level at 90′" />
+          <Row label="Penalty tally" value="+2 pts" sub="Only if level at ET" />
+          <p style={note}>HT + FT shown before kickoff. ET/pens appear only if reached. Picks hidden from others until window closes.</p>
         </div>
-      </Section>
+      </details>
 
-      {/* Nation picking */}
-      <Section title="🏳️  Nation picks">
-        <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 10px", lineHeight: 1.5 }}>
-          You picked two nations during sign-up — locked for the group stage. Every time they play, you earn bonus points on top of your prediction score.
-        </p>
-        <Row label="Primary nation wins" value="+3 pts" sub="Your #1 pick — any ranked nation" />
-        <Row label="Primary draws" value="+1 pt" sub="Group stage draws count" />
-        <Row label="Wildcard nation wins" value="+6 pts" sub="2× — must be ranked outside top 15" />
-        <Row label="Wildcard draws" value="+2 pts" sub="2× multiplier applies" />
-        <div style={{ padding: "8px 0 2px" }}>
-          <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>
-            🎯 Wildcard picks are first come, first serve — each nation can only be claimed by one player.
-          </p>
+      {/* Nation picks */}
+      <details style={sectionStyle}>
+        <summary style={summaryStyle}>🏳️ Nation picks <span style={{ color: "var(--n6)", fontSize: 16 }}>›</span></summary>
+        <div style={bodyStyle}>
+          <Row label="Primary wins" value="+3 pts" />
+          <Row label="Primary draws" value="+1 pt" />
+          <Row label="Wildcard wins" value="+6 pts" sub="2× · must be outside FIFA top 15" />
+          <Row label="Wildcard draws" value="+2 pts" />
+          <p style={note}>Wildcard = first come first serve per league.</p>
+          <p style={{ ...note, marginTop: 12, fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "var(--n5)" }}>Progression bonuses</p>
+          <Row label="Reach RO32" value="+3 pts" />
+          <Row label="Reach R16" value="+10 pts" />
+          <Row label="Reach QF" value="+20 pts" />
+          <Row label="Reach SF" value="+30 pts" />
+          <Row label="Bronze Final" value="+35 pts" />
+          <Row label="Runner-up" value="+40 pts" />
+          <Row label="Win 🏆" value="+50 pts" />
         </div>
-        <div style={{ height: 8 }} />
-        <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>Round progression bonuses</p>
-        <Row label="Reach Round of 32" value="+3 pts" sub="Scored on your group-stage picks surviving" />
-        <Row label="Reach Round of 16" value="+10 pts" />
-        <Row label="Reach Quarter-finals" value="+20 pts" />
-        <Row label="Reach Semi-finals" value="+30 pts" />
-        <Row label="Win Bronze Final 🥉" value="+35 pts" />
-        <Row label="Reach the Final (runner-up)" value="+40 pts" />
-        <Row label="Win the tournament 🏆" value="+50 pts" />
-        <div style={{ padding: "10px 0" }}>
-          <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>
-            💡 Backing an underdog that goes on a run can flip the entire leaderboard.
-          </p>
+      </details>
+
+      {/* Knockout re-draft */}
+      <details style={sectionStyle}>
+        <summary style={summaryStyle}>🔁 Knockout re-draft <span style={{ color: "var(--n6)", fontSize: 16 }}>›</span></summary>
+        <div style={bodyStyle}>
+          <p style={{ ...note, margin: "8px 0 4px" }}>Board reopens each knockout round. Keep your team free, or swap for a cost.</p>
+          <Row label="RO32 — primary swap" value="−3 pts" sub="Pick from top 12 ranked survivors" />
+          <Row label="RO32 — secondary swap" value="Free" sub="Pick from other 20" />
+          <Row label="R16 swap" value="−5 pts" />
+          <Row label="QF swap" value="−8 pts" />
+          <Row label="SF swap" value="−10 pts" />
+          <Row label="Final swap" value="−12 pts" />
+          <p style={note}>Secondary team runs through RO32 only. If it reaches R16 you get +20 farewell bonus, then it dissolves.</p>
         </div>
-      </Section>
+      </details>
 
-      {/* Knockout rounds */}
-      <Section title="🔁  Knockout rounds">
-        <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 14px", lineHeight: 1.5 }}>
-          Once the group stage ends, the board reopens at the start of each knockout round. You can keep your teams or swap — but swapping costs points.
-        </p>
-
-        <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>RO32 reset — picking from 32 survivors</p>
-        <Row label="Primary" value="Top 12 ranked" sub="Pick from the top 12 FIFA-ranked survivors" />
-        <Row label="Secondary / wildcard" value="Other 20" sub="Pick from the remaining 20 teams" />
-        <div style={{ padding: "8px 0 2px" }}>
-          <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>
-            No exclusivity — multiple players can hold the same team.
-          </p>
+      {/* Bracket */}
+      <details style={sectionStyle}>
+        <summary style={summaryStyle}>🏆 Bracket contest <span style={{ color: "var(--n6)", fontSize: 16 }}>›</span></summary>
+        <div style={bodyStyle}>
+          <p style={{ ...note, margin: "8px 0 4px" }}>Separate side contest. Pick who advances in every tie each round.</p>
+          <Row label="Each correct call" value="+1 pt" />
+          <p style={note}>Locks 30 min before first match of the round. Standings separate from main leaderboard.</p>
         </div>
-
-        <div style={{ height: 12 }} />
-        <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>Cost to swap</p>
-        <Row label="RO32 reset — Primary" value="−3 pts" />
-        <Row label="RO32 reset — Secondary" value="Free" sub="Switch your wildcard at no cost" />
-        <Row label="RO16" value="−5 pts" />
-        <Row label="Quarter-finals" value="−8 pts" />
-        <Row label="Semi-finals" value="−10 pts" />
-        <Row label="Final" value="−12 pts" sub="Keeping your team is always free" />
-
-        <div style={{ height: 12 }} />
-        <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>Secondary team</p>
-        <div style={{ padding: "6px 0" }}>
-          <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: 0, lineHeight: 1.6 }}>
-            Your secondary team only runs through the RO32. If it survives to the RO16 you collect a <strong style={{ color: "var(--n0)" }}>+20 farewell bonus</strong> (2× the RO16 milestone), then it dissolves — from RO16 onwards everyone plays with a single team.
-          </p>
-        </div>
-      </Section>
-
-      {/* Knockout bracket */}
-      <Section title="🏆  Knockout bracket">
-        <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 10px", lineHeight: 1.5 }}>
-          A separate side contest. Before each knockout round starts, predict <strong style={{ color: "var(--n0)" }}>who advances</strong> in every tie — including teams that go through on penalties.
-        </p>
-        <Row label="Each correct call" value="+1" sub="Most correct picks tops the bracket standings" />
-        <div style={{ padding: "8px 0 2px" }}>
-          <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>
-            🔒 Picks lock 30 minutes before the first match of the round. Bracket standings are tracked separately from the main leaderboard.
-          </p>
-        </div>
-      </Section>
-
-      {/* Leaderboard */}
-      <Section title="🏅  Leaderboard">
-        <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: 0, lineHeight: 1.6 }}>
-          Your total score = <strong style={{ color: "var(--n0)" }}>prediction points</strong> + <strong style={{ color: "var(--n0)" }}>live predictions</strong> + <strong style={{ color: "var(--n0)" }}>nation bonus</strong> + <strong style={{ color: "var(--n0)" }}>progression bonus</strong> − <strong style={{ color: "var(--n0)" }}>swap penalties</strong>. The Ranks page breaks this down per player. The knockout bracket is scored separately.
-        </p>
-      </Section>
+      </details>
 
       {/* FAQ */}
-      <Section title="❓  FAQ">
-        {[
-          {
-            q: "What are the HT and FT inputs in the predict card?",
-            a: "Live checkpoint picks for knockout matches. Set your half-time and full-time score guesses before kickoff — each exact match earns +2 pts, scored separately from your main prediction.",
-          },
-          {
-            q: "When do HT and FT picks lock?",
-            a: "HT locks at kickoff (you can't change it once the match starts). FT locks at half-time — so you can still adjust your full-time guess while watching the first half.",
-          },
-          {
-            q: "What's the Bracket contest? Does it count towards my main score?",
-            a: "No — it's a separate side contest. Pick who advances in every RO32 tie before midnight. Standings are tracked independently on the Bracket page. It doesn't affect your main leaderboard points.",
-          },
-          {
-            q: "I already picked nations during sign-up. Why can I pick again?",
-            a: "The RO32 re-draft lets you swap to any of the 32 surviving teams. Your old group-stage picks carry over automatically — the re-draft is optional. Swapping your primary costs −3 pts; swapping your wildcard is free.",
-          },
-          {
-            q: "Predict only shows 4 matches. Where are the rest?",
-            a: "Matches are batched. Once those 4 are played or locked, the next batch appears. Check back after kickoff.",
-          },
-        ].map(({ q, a }, i, arr) => (
-          <div key={i} style={{ padding: "12px 0", borderBottom: i < arr.length - 1 ? "1px solid var(--n8)" : "none" }}>
-            <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "var(--n0)", margin: "0 0 5px", lineHeight: 1.4 }}>
-              {q}
-            </p>
-            <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: 0, lineHeight: 1.55 }}>
-              {a}
-            </p>
-          </div>
-        ))}
-      </Section>
+      <details style={sectionStyle}>
+        <summary style={summaryStyle}>❓ FAQ <span style={{ color: "var(--n6)", fontSize: 16 }}>›</span></summary>
+        <div style={bodyStyle}>
+          {[
+            {
+              q: "What are the HT / FT inputs on the predict card?",
+              a: "Live checkpoint picks. Set your half-time and full-time score guesses before kickoff. Each exact hit = +2 pts, scored separately from your main prediction.",
+            },
+            {
+              q: "Does the bracket count toward my main score?",
+              a: "No. Separate standings, separate contest.",
+            },
+            {
+              q: "I already picked nations. Why can I pick again?",
+              a: "RO32 re-draft — optional swap to any surviving team. Your old picks carry over automatically.",
+            },
+            {
+              q: "Only 4 matches on predict. Where are the others?",
+              a: "Batched. Next 4 appear once these are played or locked.",
+            },
+          ].map(({ q, a }, i, arr) => (
+            <div key={i} style={{ padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid var(--n8)" : "none" }}>
+              <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "var(--n0)", margin: "0 0 4px" }}>{q}</p>
+              <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>{a}</p>
+            </div>
+          ))}
+        </div>
+      </details>
     </div>
   );
 }
