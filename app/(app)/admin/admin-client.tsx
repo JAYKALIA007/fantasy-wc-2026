@@ -37,8 +37,12 @@ interface MatchRow {
   status: string;
   allow_late_predictions: boolean;
   auto_fetched: boolean;
+  round_id: string;
+  home_nation_id: number | null;
+  away_nation_id: number | null;
   home_nation: { name: string } | null;
   away_nation: { name: string } | null;
+  advancer_nation_id: number | null;
 }
 
 interface AdminClientProps {
@@ -89,9 +93,12 @@ export function AdminClient({
 
   // Match Results state
   const GROUP_STAGE_ROUND_ID = "a0000000-0000-0000-0000-000000000001";
+  const RO32_ROUND_ID = ro32RoundId;
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(true);
   const [scoreInputs, setScoreInputs] = useState<Record<number, { home: string; away: string }>>({});
+  // Knockout: which nation the admin marked as advancing, keyed by match id.
+  const [advancerInputs, setAdvancerInputs] = useState<Record<number, number>>({});
   const [savingMatchId, setSavingMatchId] = useState<number | null>(null);
   const [matchStatusMsgs, setMatchStatusMsgs] = useState<Record<number, string>>({});
   const [matchSummaries, setMatchSummaries] = useState<Record<number, { total: number; correct: number; exact: number }>>({});
@@ -103,20 +110,28 @@ export function AdminClient({
       const { data } = await supabase
         .from("matches")
         .select(
-          "id, kickoff_time, home_score, away_score, status, allow_late_predictions, auto_fetched, home_nation:nations!matches_home_nation_id_fkey(name), away_nation:nations!matches_away_nation_id_fkey(name)"
+          "id, kickoff_time, home_score, away_score, status, allow_late_predictions, auto_fetched, round_id, home_nation_id, away_nation_id, home_nation:nations!matches_home_nation_id_fkey(name, eliminated_in_round), away_nation:nations!matches_away_nation_id_fkey(name, eliminated_in_round)"
         )
-        .eq("round_id", GROUP_STAGE_ROUND_ID)
+        .in("round_id", [GROUP_STAGE_ROUND_ID, RO32_ROUND_ID])
         .order("kickoff_time", { ascending: false });
 
+      type NationSel = { name: string; eliminated_in_round: string | null };
+      const pickNation = (raw: unknown): NationSel | null =>
+        Array.isArray(raw) ? ((raw[0] as NationSel | undefined) ?? null) : (raw as NationSel | null);
+
       const rows: MatchRow[] = (data ?? []).map((m) => {
-        const homeRaw = m.home_nation as unknown;
-        const awayRaw = m.away_nation as unknown;
-        const homeNation = Array.isArray(homeRaw)
-          ? (homeRaw[0] as { name: string } | undefined) ?? null
-          : (homeRaw as { name: string } | null);
-        const awayNation = Array.isArray(awayRaw)
-          ? (awayRaw[0] as { name: string } | undefined) ?? null
-          : (awayRaw as { name: string } | null);
+        const homeNation = pickNation(m.home_nation);
+        const awayNation = pickNation(m.away_nation);
+        const roundId = m.round_id as string;
+        const homeId = m.home_nation_id as number | null;
+        const awayId = m.away_nation_id as number | null;
+        // For knockout rows, the advancer is whichever team is NOT eliminated at
+        // this round (derived from the persisted elimination tags).
+        let advancer: number | null = null;
+        if (roundId === RO32_ROUND_ID) {
+          if (awayNation?.eliminated_in_round === "ro32" && homeId != null) advancer = homeId;
+          else if (homeNation?.eliminated_in_round === "ro32" && awayId != null) advancer = awayId;
+        }
         return {
           id: m.id as number,
           kickoff_time: m.kickoff_time as string,
@@ -125,11 +140,28 @@ export function AdminClient({
           status: m.status as string,
           allow_late_predictions: (m.allow_late_predictions as boolean) ?? false,
           auto_fetched: (m.auto_fetched as boolean) ?? false,
-          home_nation: homeNation,
-          away_nation: awayNation,
+          round_id: roundId,
+          home_nation_id: homeId,
+          away_nation_id: awayId,
+          home_nation: homeNation ? { name: homeNation.name } : null,
+          away_nation: awayNation ? { name: awayNation.name } : null,
+          advancer_nation_id: advancer,
         };
       });
+      // RO32 matches first (most are future kickoffs), then group stage.
+      rows.sort((a, b) => {
+        const ar = a.round_id === RO32_ROUND_ID ? 0 : 1;
+        const br = b.round_id === RO32_ROUND_ID ? 0 : 1;
+        if (ar !== br) return ar - br;
+        return new Date(b.kickoff_time).getTime() - new Date(a.kickoff_time).getTime();
+      });
       setMatches(rows);
+      // Seed advancer selections from persisted elimination state.
+      setAdvancerInputs(() => {
+        const seed: Record<number, number> = {};
+        for (const r of rows) if (r.advancer_nation_id != null) seed[r.id] = r.advancer_nation_id;
+        return seed;
+      });
       setMatchesLoading(false);
 
       // Fetch prediction summaries for finished matches
@@ -175,13 +207,25 @@ export function AdminClient({
       setMatchStatusMsgs((prev) => ({ ...prev, [matchId]: "Error: Enter valid scores." }));
       return;
     }
+    const match = matches.find((m) => m.id === matchId);
+    const isKnockout = match?.round_id === RO32_ROUND_ID;
+    const advancer = advancerInputs[matchId];
+    if (isKnockout && advancer == null) {
+      setMatchStatusMsgs((prev) => ({ ...prev, [matchId]: "Error: Tap who advanced." }));
+      return;
+    }
     setSavingMatchId(matchId);
     setMatchStatusMsgs((prev) => ({ ...prev, [matchId]: "" }));
     try {
       const res = await fetch("/api/admin/match-score", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ match_id: matchId, home_score: home, away_score: away }),
+        body: JSON.stringify({
+          match_id: matchId,
+          home_score: home,
+          away_score: away,
+          ...(isKnockout ? { advancer_nation_id: advancer } : {}),
+        }),
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok) {
@@ -192,7 +236,13 @@ export function AdminClient({
         setMatches((prev) =>
           prev.map((m) =>
             m.id === matchId
-              ? { ...m, home_score: home, away_score: away, status: "finished" }
+              ? {
+                  ...m,
+                  home_score: home,
+                  away_score: away,
+                  status: "finished",
+                  advancer_nation_id: isKnockout ? advancer : m.advancer_nation_id,
+                }
               : m
           )
         );
@@ -674,7 +724,7 @@ export function AdminClient({
               letterSpacing: 0.5,
             }}
           >
-            Match Results · Group Stage
+            Match Results
           </div>
 
           {matchesLoading ? (
@@ -695,7 +745,7 @@ export function AdminClient({
                 color: "var(--n5)",
               }}
             >
-              No group stage matches found.
+              No matches found.
             </div>
           ) : (
             matches.map((m, idx) => {
@@ -707,6 +757,15 @@ export function AdminClient({
                 scoreInputs[m.id] !== undefined && !isFinished;
               const input = scoreInputs[m.id] ?? { home: "", away: "" };
               const msg = matchStatusMsgs[m.id];
+              const isRo32 = m.round_id === RO32_ROUND_ID;
+              const showScoring =
+                (isPast && !isFinished) || (isFinished && scoreInputs[m.id] !== undefined);
+              const advancerName =
+                m.advancer_nation_id == null
+                  ? null
+                  : m.advancer_nation_id === m.home_nation_id
+                  ? m.home_nation?.name ?? null
+                  : m.away_nation?.name ?? null;
 
               return (
                 <div
@@ -735,8 +794,27 @@ export function AdminClient({
                           fontWeight: 600,
                           fontSize: 14,
                           color: "var(--n0)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
                         }}
                       >
+                        {isRo32 && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              background: "var(--gold-bg)",
+                              color: "var(--gold-text)",
+                              padding: "1px 6px",
+                              borderRadius: 6,
+                              fontFamily: "var(--font-inter), sans-serif",
+                              fontWeight: 700,
+                              letterSpacing: 0.5,
+                            }}
+                          >
+                            RO32
+                          </span>
+                        )}
                         {m.home_nation?.name ?? "TBD"} vs {m.away_nation?.name ?? "TBD"}
                       </div>
                       <div
@@ -849,12 +927,62 @@ export function AdminClient({
                             {matchSummaries[m.id].total} predictions · {matchSummaries[m.id].correct} correct · {matchSummaries[m.id].exact} exact
                           </span>
                         )}
+                        {isRo32 && advancerName && (
+                          <span
+                            style={{
+                              fontFamily: "var(--font-inter), sans-serif",
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: "var(--g0)",
+                            }}
+                          >
+                            ✓ {advancerName} advanced
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
 
+                  {/* Knockout: who advanced? The other team is eliminated. */}
+                  {isRo32 && showScoring && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={labelStyle}>Who advanced?</div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {[
+                          { id: m.home_nation_id, name: m.home_nation?.name },
+                          { id: m.away_nation_id, name: m.away_nation?.name },
+                        ].map((team) => {
+                          const selected = team.id != null && advancerInputs[m.id] === team.id;
+                          return (
+                            <button
+                              key={team.id ?? "?"}
+                              onClick={() =>
+                                team.id != null &&
+                                setAdvancerInputs((prev) => ({ ...prev, [m.id]: team.id as number }))
+                              }
+                              style={{
+                                flex: 1,
+                                padding: "8px 10px",
+                                borderRadius: 8,
+                                background: selected ? "var(--g3)" : "var(--surf2)",
+                                color: selected ? "#fff" : "var(--n4)",
+                                border: selected ? "1.5px solid var(--g3)" : "1.5px solid var(--n8)",
+                                fontFamily: "var(--font-saira), sans-serif",
+                                fontWeight: 700,
+                                fontSize: 13,
+                                cursor: "pointer",
+                              }}
+                            >
+                              {selected ? "✓ " : ""}{team.name ?? "TBD"}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Score input for past-kickoff scheduled matches or editing finished matches */}
-                  {(isPast && !isFinished) || (isFinished && scoreInputs[m.id] !== undefined) ? (
+                  {showScoring ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <input
                         type="number"
