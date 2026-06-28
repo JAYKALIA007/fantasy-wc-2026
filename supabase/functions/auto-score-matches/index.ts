@@ -18,6 +18,9 @@ interface Nation {
 interface Match {
   id: number;
   kickoff_time: string;
+  round_id: string;
+  home_nation_id: number | null;
+  away_nation_id: number | null;
   home_nation: Nation | Nation[] | null;
   away_nation: Nation | Nation[] | null;
 }
@@ -117,10 +120,13 @@ serve(async (_req: Request) => {
   // Find matches where kickoff + 2h15m has passed and not yet finished
   const cutoff = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString();
 
+  // Only ever process matches that are NOT yet finished. This is the guarantee
+  // that already-scored matches (e.g. the whole group stage) are never re-touched
+  // by the cron — their scores and nation bonuses stay frozen.
   const { data: matches, error } = await supabase
     .from("matches")
     .select(`
-      id, kickoff_time,
+      id, kickoff_time, round_id, home_nation_id, away_nation_id,
       home_nation:home_nation_id(name),
       away_nation:away_nation_id(name)
     `)
@@ -180,6 +186,14 @@ serve(async (_req: Request) => {
     }
 
     // Nation bonus points — fetch all leagues and their members
+    const homeNationId = match.home_nation_id as number;
+    const awayNationId = match.away_nation_id as number;
+    const homeWin = score.home > score.away;
+    const awayWin = score.away > score.home;
+    const draw = score.home === score.away;
+    const homePoints = homeWin ? 3 : draw ? 1 : 0;
+    const awayPoints = awayWin ? 3 : draw ? 1 : 0;
+
     const { data: leagues } = await supabase.from("leagues").select("id");
 
     for (const league of leagues ?? []) {
@@ -188,28 +202,37 @@ serve(async (_req: Request) => {
         .select("id, primary_nation_id, secondary_nation_id")
         .eq("league_id", league.id as string);
 
-      const { data: matchRow } = await supabase
-        .from("matches")
-        .select("home_nation_id, away_nation_id")
-        .eq("id", match.id)
-        .single();
+      const memberIds = (leagueMembers ?? []).map((m) => m.id as string);
 
-      if (!matchRow) continue;
-
-      const homeNationId = matchRow.home_nation_id as number;
-      const awayNationId = matchRow.away_nation_id as number;
-      const homeWin = score.home > score.away;
-      const awayWin = score.away > score.home;
-      const draw = score.home === score.away;
-      const homePoints = homeWin ? 3 : draw ? 1 : 0;
-      const awayPoints = awayWin ? 3 : draw ? 1 : 0;
+      // Resolve each member's held team for THIS match's round: their re-draft
+      // holding if any, else their group pick. Keyed by round_id, so group-stage
+      // matches (no holdings) always fall back to the group pick — kept in sync
+      // with the admin /api/admin/match-score route and lib/server/holdings.ts.
+      const heldByMember = new Map<string, { primary: number | null; secondary: number | null }>();
+      if (memberIds.length > 0) {
+        const { data: holdings } = await supabase
+          .from("member_round_teams")
+          .select("league_member_id, primary_nation_id, secondary_nation_id")
+          .eq("round_id", match.round_id)
+          .in("league_member_id", memberIds);
+        for (const h of holdings ?? []) {
+          heldByMember.set(h.league_member_id as string, {
+            primary: h.primary_nation_id as number | null,
+            secondary: h.secondary_nation_id as number | null,
+          });
+        }
+      }
 
       await supabase.from("nation_bonus_points").delete().eq("match_id", match.id);
 
       const bonusRecords: { league_member_id: string; match_id: number; nation_id: number; pick_type: string; points: number }[] = [];
       for (const member of leagueMembers ?? []) {
-        const primary = member.primary_nation_id as number | null;
-        const secondary = member.secondary_nation_id as number | null;
+        const held = heldByMember.get(member.id as string) ?? {
+          primary: member.primary_nation_id as number | null,
+          secondary: member.secondary_nation_id as number | null,
+        };
+        const primary = held.primary;
+        const secondary = held.secondary;
 
         if (primary !== null) {
           const pts = primary === homeNationId ? homePoints : primary === awayNationId ? awayPoints : 0;
