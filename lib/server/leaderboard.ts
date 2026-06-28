@@ -1,5 +1,6 @@
 import { ROUND_ID } from "@/lib/constants";
 import { buildMemberMaps, type LeagueMemberRow } from "@/lib/server/members";
+import { currentHolding, type HoldingRow } from "@/lib/server/holdings";
 
 export interface LeaderboardRow {
   user_id: string;
@@ -41,7 +42,10 @@ export async function computeLeaderboard(
     .select("user_id, points, matches!inner(status, round_id)")
     .eq("league_id", leagueId)
     .eq("matches.status", "finished");
-  const [finishedPredsResult, bonusResult, progressionResult, penaltyResult] = await Promise.all([
+  const emptyHoldings = Promise.resolve({
+    data: [] as (HoldingRow & { league_member_id: string })[],
+  });
+  const [finishedPredsResult, bonusResult, progressionResult, penaltyResult, holdingsResult] = await Promise.all([
     roundId ? predictionsQuery.eq("matches.round_id", roundId) : predictionsQuery,
     memberIds.length > 0
       ? supabase
@@ -56,7 +60,23 @@ export async function computeLeaderboard(
     memberIds.length > 0
       ? supabase.from("swap_penalties").select("league_member_id, amount").in("league_member_id", memberIds)
       : Promise.resolve({ data: [] as { league_member_id: string; amount: number }[] }),
+    memberIds.length > 0
+      ? supabase
+          .from("member_round_teams")
+          .select("league_member_id, round_id, primary_nation_id, secondary_nation_id")
+          .in("league_member_id", memberIds)
+      : emptyHoldings,
   ]);
+
+  // Held primary per member: the latest re-draft holding if any, else the group
+  // pick. Drives the nation shown on the leaderboard so it reflects redrafted
+  // teams. Keyed by round, so group-stage standings are unaffected.
+  const holdingsByMember = new Map<string, HoldingRow[]>();
+  for (const h of (holdingsResult.data ?? []) as (HoldingRow & { league_member_id: string })[]) {
+    const arr = holdingsByMember.get(h.league_member_id) ?? [];
+    arr.push({ round_id: h.round_id, primary_nation_id: h.primary_nation_id, secondary_nation_id: h.secondary_nation_id });
+    holdingsByMember.set(h.league_member_id, arr);
+  }
 
   // Sum a league_member_id-keyed points table into a user_id-keyed map.
   const sumByUser = (
@@ -89,6 +109,10 @@ export async function computeLeaderboard(
     const nationBonus = nationBonusByUser.get(userId) ?? 0;
     const progressionBonus = progressionByUser.get(userId) ?? 0;
     const swapPenalty = penaltyByUser.get(userId) ?? 0;
+    const heldPrimary = currentHolding(
+      { primary_nation_id: member.primary_nation_id ?? null, secondary_nation_id: null },
+      holdingsByMember.get(member.id) ?? []
+    ).primary_nation_id;
     rows.push({
       user_id: userId,
       profile_name: member.profile_name,
@@ -97,7 +121,7 @@ export async function computeLeaderboard(
       nation_bonus: nationBonus,
       progression_bonus: progressionBonus,
       swap_penalty: swapPenalty,
-      primary_nation_id: member.primary_nation_id ?? null,
+      primary_nation_id: heldPrimary,
       joined_at: member.joined_at,
       finished_prediction_count: finishedPredCountByUser.get(userId) ?? 0,
     });
