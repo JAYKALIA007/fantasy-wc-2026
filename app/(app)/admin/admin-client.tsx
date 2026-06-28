@@ -45,6 +45,8 @@ interface AdminClientProps {
   members: LeagueMember[];
   activeWindow: TransferWindow | null;
   r16RoundId: string;
+  ro32RoundId: string;
+  redraftWindow: { status: string; closes_at: string | null } | null;
   currentUserId: string;
   inviteUrl: string;
 }
@@ -67,10 +69,13 @@ export function AdminClient({
   members,
   activeWindow,
   r16RoundId,
+  ro32RoundId,
+  redraftWindow,
   currentUserId,
   inviteUrl,
 }: AdminClientProps) {
   const router = useRouter();
+  const [redraftBusy, setRedraftBusy] = useState(false);
 
   const [leagueName, setLeagueName] = useState(league.name);
   const [nameSaving, setNameSaving] = useState(false);
@@ -319,6 +324,27 @@ export function AdminClient({
       }
     } finally {
       setWindowBusy(false);
+    }
+  }
+
+  async function toggleRedraftWindow(action: "open" | "close") {
+    setRedraftBusy(true);
+    setStatusMsg(null);
+    try {
+      const res = await fetch("/api/admin/redraft-window", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ league_id: league.id, round_id: ro32RoundId, action }),
+      });
+      const data = (await res.json()) as { success?: boolean; error?: string };
+      if (!res.ok) {
+        setStatusMsg(`Error: ${data.error ?? "Unknown error"}`);
+      } else {
+        setStatusMsg(action === "open" ? "RO32 re-draft window opened." : "RO32 re-draft window closed.");
+        router.refresh();
+      }
+    } finally {
+      setRedraftBusy(false);
     }
   }
 
@@ -1017,6 +1043,53 @@ export function AdminClient({
               : activeWindow
               ? "Close Window Now"
               : "Open Window Now (24h)"}
+          </button>
+        </div>
+
+        {/* Re-draft Window · RO32 */}
+        <div style={sectionStyle}>
+          <div
+            style={{
+              fontFamily: "var(--font-saira), sans-serif",
+              fontWeight: 700,
+              fontSize: 14,
+              color: "var(--n0)",
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+            }}
+          >
+            Re-draft Window · RO32
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "10px 0" }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: redraftWindow?.status === "open" ? "var(--g3)" : "var(--n6)", flexShrink: 0 }} />
+            <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 14, color: redraftWindow?.status === "open" ? "var(--g0)" : "var(--n5)" }}>
+              {redraftWindow?.status === "open"
+                ? redraftWindow.closes_at
+                  ? `Open · closes ${formatDate(redraftWindow.closes_at)}`
+                  : "Open"
+                : "Currently closed"}
+            </span>
+          </div>
+
+          <button
+            onClick={() => toggleRedraftWindow(redraftWindow?.status === "open" ? "close" : "open")}
+            disabled={redraftBusy}
+            style={{
+              padding: "11px 0",
+              width: "100%",
+              borderRadius: 10,
+              background: redraftWindow?.status === "open" ? "var(--r2)" : "var(--g3)",
+              color: "#fff",
+              fontFamily: "var(--font-saira), sans-serif",
+              fontWeight: 700,
+              fontSize: 14,
+              border: "none",
+              cursor: redraftBusy ? "not-allowed" : "pointer",
+              opacity: redraftBusy ? 0.7 : 1,
+            }}
+          >
+            {redraftBusy ? "…" : redraftWindow?.status === "open" ? "Close Re-draft Now" : "Open Re-draft Now (24h)"}
           </button>
         </div>
       </div>

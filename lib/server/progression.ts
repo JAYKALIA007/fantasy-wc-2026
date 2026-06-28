@@ -1,7 +1,7 @@
 // Knockout progression-bonus engine (pure). Awarded when a held team reaches a
 // knockout milestone. See docs/knockout-reassignment-spec.md.
 //
-//   reach RO32 (survive group) +5
+//   reach RO32 (survive group) +3
 //   reach RO16                +10
 //   reach QF                  +20
 //   reach SF                  +30
@@ -15,7 +15,7 @@
 // function stays general: base x multiplier for any holding in the advancing set.)
 
 export const MILESTONE_BONUS = {
-  ro32: 5,
+  ro32: 3,
   r16: 10,
   qf: 20,
   sf: 30,

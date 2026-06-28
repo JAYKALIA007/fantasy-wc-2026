@@ -32,6 +32,14 @@ interface MatchSummary {
   exact: number;
 }
 
+interface PointsBreakdown {
+  predictions: number;
+  nationBonus: number;
+  progressionBonus: number;
+  swapPenalty: number;
+  total: number;
+}
+
 interface Props {
   predictions: PredictionRecord[];
   profileName?: string;
@@ -39,6 +47,7 @@ interface Props {
   nationBonus?: number;
   primaryNation?: NationRef;
   secondaryNation?: NationRef;
+  breakdown?: PointsBreakdown;
 }
 
 
@@ -80,7 +89,7 @@ function PointsBadge({ points }: { points: number | null }) {
 
 const PAGE_SIZE = 5;
 
-export default function HistoryClient({ predictions, profileName, backHref, nationBonus, primaryNation, secondaryNation }: Props) {
+export default function HistoryClient({ predictions, profileName, backHref, nationBonus, primaryNation, secondaryNation, breakdown }: Props) {
   const [summaries, setSummaries] = useState<Record<number, MatchSummary>>({});
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -234,6 +243,30 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
           gap: 10,
         }}
       >
+        {breakdown && (
+          <div style={{ background: "var(--surf)", borderRadius: 14, padding: "14px 16px", boxShadow: "var(--sh-sm)" }}>
+            <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 12, color: "var(--n0)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>
+              Points breakdown
+            </div>
+            {[
+              { label: "Predictions", value: breakdown.predictions },
+              { label: "Nation bonus", value: breakdown.nationBonus },
+              { label: "Progression bonus", value: breakdown.progressionBonus },
+              ...(breakdown.swapPenalty > 0 ? [{ label: "Swap penalty", value: -breakdown.swapPenalty }] : []),
+            ].map((r) => (
+              <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid var(--n8)" }}>
+                <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n4)" }}>{r.label}</span>
+                <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 14, color: r.value < 0 ? "var(--r2)" : "var(--n0)" }}>
+                  {r.value < 0 ? `−${Math.abs(r.value)}` : `+${r.value}`}
+                </span>
+              </div>
+            ))}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10 }}>
+              <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 13, color: "var(--n0)", textTransform: "uppercase", letterSpacing: 0.5 }}>Total</span>
+              <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 20, color: "var(--g2)" }}>{breakdown.total}</span>
+            </div>
+          </div>
+        )}
         {predictions.length === 0 && (
           <div
             style={{

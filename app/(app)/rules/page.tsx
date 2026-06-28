@@ -73,7 +73,7 @@ export default async function RulesPage() {
         </div>
         <div style={{ height: 8 }} />
         <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>Round progression bonuses</p>
-        <Row label="Reach Round of 32" value="+5 pts" />
+        <Row label="Reach Round of 32" value="+3 pts" sub="Scored on your group-stage picks surviving" />
         <Row label="Reach Round of 16" value="+10 pts" />
         <Row label="Reach Quarter-finals" value="+20 pts" />
         <Row label="Reach Semi-finals" value="+30 pts" />
@@ -94,8 +94,8 @@ export default async function RulesPage() {
         </p>
 
         <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>RO32 reset — picking from 32 survivors</p>
-        <Row label="Primary" value="Top 10 ranked" sub="Pick from the top 10 FIFA-ranked survivors" />
-        <Row label="Secondary / wildcard" value="Other 22" sub="Pick from the remaining 22 teams" />
+        <Row label="Primary" value="Top 12 ranked" sub="Pick from the top 12 FIFA-ranked survivors" />
+        <Row label="Secondary / wildcard" value="Other 20" sub="Pick from the remaining 20 teams" />
         <div style={{ padding: "8px 0 2px" }}>
           <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: 0, lineHeight: 1.5 }}>
             No exclusivity — multiple players can hold the same team.
@@ -105,7 +105,7 @@ export default async function RulesPage() {
         <div style={{ height: 12 }} />
         <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--n5)", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>Cost to swap</p>
         <Row label="RO32 reset — Primary" value="−5 pts" />
-        <Row label="RO32 reset — Secondary" value="−3 pts" />
+        <Row label="RO32 reset — Secondary" value="Free" sub="Switch your wildcard at no cost" />
         <Row label="RO16" value="−5 pts" />
         <Row label="Quarter-finals" value="−8 pts" />
         <Row label="Semi-finals" value="−10 pts" />

@@ -16,6 +16,13 @@ A private prediction + nation-pick league for FIFA World Cup 2026. One league, i
 | **Nation bonus** | Points earned from primary/wildcard nation results, stored in `nation_bonus_points`. Awarded by admin via the score results flow. |
 | **Late window** | Admin-controlled post-kickoff prediction window. Set via `allow_late_predictions = true` and `prediction_deadline = <timestamp>` on a match. |
 | **Round** | A tournament stage (`rounds` table). Group stage ID: `a0000000-0000-0000-0000-000000000001`. R16 ID: `a0000000-0000-0000-0000-000000000002`. |
+| **Re-draft** | At each knockout round boundary, players may swap their held team(s) for surviving teams. Keeping is free; swapping costs an escalating penalty. |
+| **Primary pool** | The top 12 surviving teams by FIFA ranking — the only teams selectable as a primary at the RO32 re-draft. |
+| **Secondary pool** | The other 20 surviving teams — the only teams selectable as a wildcard at the RO32 re-draft; switching is free. |
+| **Collapse** | The RO32→RO16 transition where the secondary concept dissolves and a player carries forward exactly one team. |
+| **Progression bonus** | Points for a held team reaching a knockout milestone (RO32 +3 … win +50), stored in `progression_bonus_points`. Primary 1×, secondary 2×. |
+| **Swap penalty** | Points deducted for changing a held team during a re-draft window, stored in `swap_penalties`. |
+| **Re-draft window** | Admin-gated open/close window per knockout round (`redraft_windows` table) during which swaps are allowed. |
 
 ---
 
@@ -38,10 +45,12 @@ A private prediction + nation-pick league for FIFA World Cup 2026. One league, i
 ### Nation Round Progression Bonuses
 | Milestone | Points |
 |---|---|
-| Reach Round of 32 | +5 pts |
+| Reach Round of 32 | +3 pts |
 | Reach Round of 16 | +10 pts |
-| Reach Quarter-finals | +15 pts |
-| Semi-finals | +20 pts |
+| Reach Quarter-finals | +20 pts |
+| Reach Semi-finals | +30 pts |
+| Win Bronze Final | +35 pts |
+| Reach the Final (runner-up) | +40 pts |
 | Win the tournament | +50 pts |
 
 **Total score = prediction points + nation bonus points.**
@@ -189,5 +198,7 @@ fantasy_round_scores   league_id, user_id, round_id, total_points
 
 - **Invite URL**: `https://fantasy-wc-2026-ashy.vercel.app/join?code=JFWC26`
 - **Admin email**: `fantasywc2026@gmail.com`
-- **Wildcard eligibility**: FIFA ranking > 15
-- **Max players**: 15
+- **Wildcard eligibility (group stage)**: FIFA ranking > 15
+- **RO32 re-draft primary pool**: top 12 by FIFA ranking (Argentina → Germany)
+- **RO32 re-draft secondary pool**: other 20 surviving teams; secondary switch free at RO32
+- **Max players**: 20 (admin excluded from leaderboard)
