@@ -22,6 +22,18 @@ const KNOCKOUT_ROUND_IDS = [
   "a0000000-0000-0000-0000-000000000008", // bronze
 ];
 
+// Knockout round_id -> the eliminated_in_round tag set on the losing team when a
+// match finalizes. Mirrors ROUND_ELIM_TAG in app/api/admin/match-score; drives
+// the bracket contest + progression bonuses.
+const ROUND_ELIM_TAG: Record<string, string> = {
+  "a0000000-0000-0000-0000-000000000003": "ro32",
+  "a0000000-0000-0000-0000-000000000002": "r16",
+  "a0000000-0000-0000-0000-000000000004": "qf",
+  "a0000000-0000-0000-0000-000000000005": "sf",
+  "a0000000-0000-0000-0000-000000000006": "final",
+  "a0000000-0000-0000-0000-000000000008": "bronze",
+};
+
 const SITE_URL = Deno.env.get("SITE_URL") ?? "https://fantasy-wc-2026-ashy.vercel.app";
 
 interface Nation {
@@ -329,7 +341,7 @@ serve(async (_req: Request) => {
     }
     const espnHome = toEspnName(homeNation.name).toLowerCase();
     const espnAway = toEspnName(awayNation.name).toLowerCase();
-    let score: { home: number; away: number } | null = null;
+    let score: { home: number; away: number; shootoutHome: number | null; shootoutAway: number | null } | null = null;
     for (const dateStr of datesToTry(match.kickoff_time)) {
       const events = await getEvents(dateStr);
       const comp = findCompetition(events, espnHome, espnAway);
@@ -339,7 +351,10 @@ serve(async (_req: Request) => {
         if (h && a) {
           const hs = parseInt(h.score, 10);
           const as = parseInt(a.score, 10);
-          if (!isNaN(hs) && !isNaN(as)) { score = { home: hs, away: as }; break; }
+          if (!isNaN(hs) && !isNaN(as)) {
+            score = { home: hs, away: as, shootoutHome: h.shootoutScore ?? null, shootoutAway: a.shootoutScore ?? null };
+            break;
+          }
         }
       }
     }
@@ -355,6 +370,26 @@ serve(async (_req: Request) => {
     if (updateErr) {
       finalPass.push({ match_id: match.id, result: `error: ${updateErr.message}` });
       continue;
+    }
+
+    // Knockout: tag the loser eliminated at this round so the bracket + progression
+    // bonuses resolve without a manual admin step. Winner = shootout winner when a
+    // shootout was played, else the higher score. A still-level result with no
+    // shootout has no derivable winner, so leave it for the admin backup rather
+    // than mis-tag.
+    const elimTag = ROUND_ELIM_TAG[match.round_id];
+    if (elimTag && match.home_nation_id !== null && match.away_nation_id !== null) {
+      const usePens = score.shootoutHome !== null && score.shootoutAway !== null;
+      const decided = usePens ? score.shootoutHome !== score.shootoutAway : score.home !== score.away;
+      if (decided) {
+        const homeAdvances = usePens
+          ? (score.shootoutHome as number) > (score.shootoutAway as number)
+          : score.home > score.away;
+        const winnerId = homeAdvances ? match.home_nation_id : match.away_nation_id;
+        const loserId = homeAdvances ? match.away_nation_id : match.home_nation_id;
+        await supabase.from("nations").update({ eliminated: true, eliminated_in_round: elimTag }).eq("id", loserId);
+        await supabase.from("nations").update({ eliminated: false, eliminated_in_round: null }).eq("id", winnerId);
+      }
     }
 
     const { data: predictions } = await supabase.from("predictions").select("id").eq("match_id", match.id);
