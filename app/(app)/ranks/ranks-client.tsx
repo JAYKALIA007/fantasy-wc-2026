@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { FLAG_EMOJI } from "@/lib/utils/flags";
 import type { LeaderboardApiRow } from "@/app/api/leaderboard/route";
 
@@ -179,7 +178,6 @@ export default function RanksClient({
   currentUserId,
   leagueName,
   memberCount,
-  leagueId,
   roundId,
   ro32RoundId,
   myRank,
@@ -189,10 +187,6 @@ export default function RanksClient({
 }: Props) {
   const [rows, setRows] = useState<RankRow[]>(initialRows);
   const [view, setView] = useState<LeaderboardView>("overall");
-  const viewRef = useRef<LeaderboardView>("overall");
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const supabase = createClient();
 
   const fetchLeaderboard = useCallback(async (v: LeaderboardView) => {
     try {
@@ -209,82 +203,8 @@ export default function RanksClient({
 
   const switchView = useCallback((v: LeaderboardView) => {
     setView(v);
-    viewRef.current = v;
     void fetchLeaderboard(v);
   }, [fetchLeaderboard]);
-
-  const scheduleRefresh = useCallback(() => {
-    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-    // Score writes arrive in bursts during live scoring (the cron writes many
-    // rows at a phase boundary). A long debounce collapses each burst into a
-    // single refetch per client instead of one per write — the main lever for
-    // keeping /api/leaderboard CPU down under realtime fan-out. 2.5s of added
-    // latency on a leaderboard is imperceptible.
-    refreshTimerRef.current = setTimeout(() => {
-      void fetchLeaderboard(viewRef.current);
-    }, 2500);
-  }, [fetchLeaderboard]);
-
-  useEffect(() => {
-    const onScoreChange = () => {
-      scheduleRefresh();
-    };
-
-    const channel = supabase
-      .channel("leaderboard_changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "prediction_round_scores",
-          filter: `league_id=eq.${leagueId}`,
-        },
-        onScoreChange
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "nation_bonus_points",
-        },
-        onScoreChange
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "progression_bonus_points",
-        },
-        onScoreChange
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "swap_penalties",
-        },
-        onScoreChange
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "live_checkpoint_predictions",
-        },
-        onScoreChange
-      )
-      .subscribe();
-
-    return () => {
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-      void supabase.removeChannel(channel);
-    };
-  }, [leagueId, scheduleRefresh]);
 
   const myCurrentRow = rows.find((r) => r.user_id === currentUserId);
   const myCurrentRank = myCurrentRow ? rows.indexOf(myCurrentRow) + 1 : myRank;
