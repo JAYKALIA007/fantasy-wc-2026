@@ -122,6 +122,15 @@ function FlagChip({ code }: { code: string }) {
   );
 }
 
+function CheckpointCode({ code }: { code: string }) {
+  return (
+    <span style={{
+      fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 10,
+      letterSpacing: 1, color: "var(--n5)", textTransform: "uppercase",
+    }}>{code}</span>
+  );
+}
+
 const PHASE_LABELS: Record<string, string> = {
   h1: "Half-time",
   h2: "90' score",
@@ -149,12 +158,16 @@ function CheckpointSection({
   phases,
   myPicks,
   kickoffTime,
+  homeCode,
+  awayCode,
 }: {
   matchId: number;
   leagueId: string;
   phases: CheckpointPhase[];
   myPicks: CheckpointPick[];
   kickoffTime: string;
+  homeCode: string;
+  awayCode: string;
 }) {
   // h1 locks at kickoff regardless of whether the cron has flipped its status to
   // "closed" yet — kickoff is a known time, so treat h1 as locked once it passes.
@@ -243,7 +256,7 @@ function CheckpointSection({
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {myPick ? (
                 <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n4)" }}>
-                  {myPick.predicted_home}–{myPick.predicted_away}
+                  {homeCode} {myPick.predicted_home}–{myPick.predicted_away} {awayCode}
                 </span>
               ) : (
                 <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n6)" }}>—</span>
@@ -272,6 +285,16 @@ function CheckpointSection({
       {/* Compact editable rows for open phases — one row per phase, one save button */}
       {openPhases.length > 0 && (
         <div style={{ marginTop: closedPhases.length > 0 ? 10 : 0 }}>
+          {/* Column header: which side is home vs away — aligned over the two steppers */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 6 }}>
+            <span style={{ width: 28, flexShrink: 0 }} />
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <span style={{ width: 120, textAlign: "center" }}><CheckpointCode code={homeCode} /></span>
+              <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 16, color: "transparent" }}>–</span>
+              <span style={{ width: 120, textAlign: "center" }}><CheckpointCode code={awayCode} /></span>
+            </div>
+            <span style={{ fontSize: 10, flexShrink: 0, color: "transparent" }}>+2</span>
+          </div>
           {openPhases.map((p, idx) => {
             const [home, away] = phaseScores[p.phase] ?? [0, 0];
             return (
@@ -498,6 +521,8 @@ export default function PredictClient({ matches, existingPredictions, leagueId, 
                       phases={matchPhases}
                       myPicks={matchPicks}
                       kickoffTime={match.kickoff_time}
+                      homeCode={match.home_nation.flag_code}
+                      awayCode={match.away_nation.flag_code}
                     />
                   )}
 
