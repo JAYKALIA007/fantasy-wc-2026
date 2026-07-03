@@ -186,7 +186,12 @@ function mapEspnCompetition(comp: any): DetectedState | null {
   } else {
     const level = h === a;
     const halftime = hasKw(type, "halftime") || hasKw(type, "half-time") || hasKw(type, "half time") || isExactStatus(type, "ht");
-    const shootout = period >= 5 || hasKw(type, "shootout") || hasKw(type, "penalt");
+    // A populated penalty tally is the most reliable in-play signal that the
+    // shootout has begun — ESPN often still reports period 4 / "AET" text during
+    // pens, which would otherwise fall through to end_et and leave pens open.
+    const shootout =
+      period >= 5 || shootoutHome != null || shootoutAway != null ||
+      hasKw(type, "shootout") || hasKw(type, "penalt");
     const extra = period === 3 || period === 4 || hasKw(type, "extra");
     const endMarker =
       hasKw(type, "end of") || hasKw(type, "full time") || hasKw(type, "full-time") ||

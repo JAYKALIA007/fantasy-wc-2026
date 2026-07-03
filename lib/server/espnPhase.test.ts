@@ -67,6 +67,13 @@ describe("mapEspnCompetition", () => {
     expect(r.shootoutAway).toBe(1);
   });
 
+  it("shootout in progress but ESPN still reports period 4 / 'AET' → shootout (not end_et)", () => {
+    // Regression: ESPN often keeps period 4 and end-of-ET text during pens. The
+    // populated shootout tally must still classify it as shootout so pens locks.
+    const r = mapEspnCompetition(comp({ state: "in", description: "AET", period: 4, homeScore: 2, awayScore: 2, homeShootout: 1, awayShootout: 0 }))!;
+    expect(r.stage).toBe("shootout");
+  });
+
   it("completed after ET is NOT decidedInRegulation", () => {
     const r = mapEspnCompetition(comp({ state: "post", completed: true, description: "Full Time", period: 4, homeScore: 2, awayScore: 1 }))!;
     expect(r.stage).toBe("complete");

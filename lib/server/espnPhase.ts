@@ -115,7 +115,15 @@ export function mapEspnCompetition(comp: EspnCompetitionLike): DetectedState | n
       hasKeyword(type, "half-time") ||
       hasKeyword(type, "half time") ||
       isExactStatus(type, "ht");
-    const shootout = period >= 5 || hasKeyword(type, "shootout") || hasKeyword(type, "penalt");
+    // A populated penalty tally is the most reliable in-play signal that the
+    // shootout has begun — ESPN often still reports period 4 / "AET" text during
+    // pens, which would otherwise fall through to end_et and leave pens open.
+    const shootout =
+      period >= 5 ||
+      shootoutHome != null ||
+      shootoutAway != null ||
+      hasKeyword(type, "shootout") ||
+      hasKeyword(type, "penalt");
     const extra = period === 3 || period === 4 || hasKeyword(type, "extra");
     // "End of <phase>" markers ESPN shows during the break before ET / pens.
     const endMarker =
