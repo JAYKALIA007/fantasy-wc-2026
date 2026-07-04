@@ -140,38 +140,47 @@ export default async function HomePage() {
   const isCreator = leagueData?.creator_id === user.id;
   const adminUserId = leagueData?.creator_id as string | null;
 
-  // RO32 re-draft nudge — show when the window is open for this league.
-  const RO32_ROUND_ID = "a0000000-0000-0000-0000-000000000003";
+  // Knockout nudges: R16 is the active round (RO16 re-draft + RO16 bracket). The
+  // RO32 bracket persists as a read-only history card.
+  const R16_ROUND_ID = "a0000000-0000-0000-0000-000000000002";
+
   const { data: redraftWin } = await supabase
     .from("redraft_windows")
     .select("status, closes_at")
     .eq("league_id", leagueId)
-    .eq("round_id", RO32_ROUND_ID)
+    .eq("round_id", R16_ROUND_ID)
     .maybeSingle();
   const redraftOpen =
     !!redraftWin &&
     redraftWin.status === "open" &&
     (!redraftWin.closes_at || new Date() < new Date(redraftWin.closes_at as string));
 
-  // RO32 bracket nudge — show until the bracket locks (first RO32 kickoff) if the
-  // player hasn't completed all 16 picks.
-  const [{ data: ro32Kickoffs }, { count: myBracketCount }] = await Promise.all([
-    supabase.from("matches").select("kickoff_time").eq("round_id", RO32_ROUND_ID).order("kickoff_time", { ascending: true }).limit(1),
-    supabase.from("ro32_bracket_picks").select("id", { count: "exact", head: true }).eq("league_id", leagueId).eq("user_id", user.id),
-  ]);
-  const bracketLockAt = ro32Kickoffs && ro32Kickoffs[0]
-    ? new Date(new Date(ro32Kickoffs[0].kickoff_time as string).getTime() - BRACKET_LOCK_LEAD_MS).toISOString()
+  // R16 bracket nudge — the 8 ties; locks at first R16 kickoff − lead.
+  const { data: r16Matches } = await supabase
+    .from("matches")
+    .select("id, kickoff_time")
+    .eq("round_id", R16_ROUND_ID)
+    .order("kickoff_time", { ascending: true });
+  const r16MatchIds = (r16Matches ?? []).map((m) => m.id as number);
+  const r16TieCount = r16MatchIds.length;
+  const { count: myBracketCount } = r16MatchIds.length > 0
+    ? await supabase.from("ro32_bracket_picks").select("id", { count: "exact", head: true }).eq("league_id", leagueId).eq("user_id", user.id).in("match_id", r16MatchIds)
+    : { count: 0 };
+  const bracketLockAt = r16Matches && r16Matches[0]
+    ? new Date(new Date(r16Matches[0].kickoff_time as string).getTime() - BRACKET_LOCK_LEAD_MS).toISOString()
     : null;
   const bracketLocked = bracketLockAt ? new Date() >= new Date(bracketLockAt) : true;
   const myBracketPicks = myBracketCount ?? 0;
-  // Show while editable (submit/finish) OR after lock if they took part (view results).
   const bracketShow = !!bracketLockAt && (!bracketLocked || myBracketPicks > 0);
-  const bracketTitle = bracketLocked ? "🏆 Bracket results" : myBracketPicks === 0 ? "🏆 Submit your bracket" : myBracketPicks < 16 ? "🏆 Finish your bracket" : "🏆 Bracket saved";
+  const bracketTitle = bracketLocked ? "🏆 RO16 bracket results" : myBracketPicks === 0 ? "🏆 Submit your RO16 bracket" : myBracketPicks < r16TieCount ? "🏆 Finish your RO16 bracket" : "🏆 RO16 bracket saved";
   const bracketSub = bracketLocked
-    ? "See how your RO32 picks are doing"
-    : myBracketPicks < 16
-      ? `Pick who advances in all 16 ties${bracketLockAt ? ` · locks ${toISTWithDay(bracketLockAt)}` : ""}`
-      : `All 16 picked · edit anytime before lock${bracketLockAt ? ` (${toISTWithDay(bracketLockAt)})` : ""}`;
+    ? "See how your RO16 picks are doing"
+    : myBracketPicks < r16TieCount
+      ? `Pick who advances in all ${r16TieCount} ties${bracketLockAt ? ` · locks ${toISTWithDay(bracketLockAt)}` : ""}`
+      : `All ${r16TieCount} picked · edit anytime before lock${bracketLockAt ? ` (${toISTWithDay(bracketLockAt)})` : ""}`;
+
+  // RO32 bracket — read-only history card, shown once the RO16 window is live.
+  const showRo32History = redraftOpen || bracketShow;
 
   // All live matches (status=scheduled but past kickoff — scored by the edge function)
   const liveMatches: LiveMatch[] = (liveMatchesResult.data ?? []).map((raw) => ({
@@ -449,7 +458,7 @@ export default async function HomePage() {
                 🔄 Re-draft open
               </div>
               <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--g2)", marginTop: 3, lineHeight: 1.4 }}>
-                Pick your Round of 32 teams{redraftWin?.closes_at ? ` · closes ${toISTWithDay(redraftWin.closes_at as string)}` : ""}
+                Pick your Round of 16 team{redraftWin?.closes_at ? ` · closes ${toISTWithDay(redraftWin.closes_at as string)}` : ""}
               </div>
             </div>
             <span style={{ color: "var(--g3)", fontSize: 22, flexShrink: 0 }}>›</span>
@@ -473,6 +482,26 @@ export default async function HomePage() {
               </div>
             </div>
             <span style={{ color: "var(--n0)", fontSize: 22, flexShrink: 0 }}>›</span>
+          </Link>
+        )}
+        {showRo32History && (
+          <Link
+            href="/bracket?round=ro32"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+              background: "var(--surf)", border: "1px solid var(--n8)", borderRadius: 14,
+              padding: "12px 14px", textDecoration: "none",
+            }}
+          >
+            <div>
+              <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "var(--n4)", letterSpacing: 0.3 }}>
+                📜 RO32 bracket
+              </div>
+              <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n6)", marginTop: 2 }}>
+                Your Round of 32 picks & results
+              </div>
+            </div>
+            <span style={{ color: "var(--n6)", fontSize: 18, flexShrink: 0 }}>›</span>
           </Link>
         )}
         {/* Matchday hero card — all matches in the next batch (same kickoff) in one card */}
