@@ -75,16 +75,44 @@ export async function POST(request: Request) {
   let baseline = { primary_nation_id: member.primary_nation_id as number | null, secondary_nation_id: member.secondary_nation_id as number | null };
   let pools: { primary: Set<number>; secondary?: Set<number> } = { primary: primaryPool, secondary: secondaryPool };
   if (round !== "ro32") {
-    const { data: prior } = await supabase
-      .from("member_round_teams")
-      .select("primary_nation_id")
-      .eq("league_member_id", member.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    baseline = { primary_nation_id: (prior?.primary_nation_id as number | null) ?? null, secondary_nation_id: null };
-    // Single-team rounds: any surviving team is allowed.
-    pools = { primary: new Set(survivorIds) };
+    // The penalty baseline is the team carried INTO this round, which must be
+    // IMMUTABLE across re-submissions — never the current round's own (mutable)
+    // holding, or the reference drifts on every save (switch-back stops being free,
+    // and the −5 can be dodged by re-saving the same team).
+    const survivorSet = new Set(survivorIds);
+    let carried: number | null;
+    if (round === "r16") {
+      // Collapse: the surviving RO32-held team — primary if alive, else the
+      // surviving secondary. Derived from RO32 holdings + eliminations, so stable.
+      const { data: ro32Row } = await supabase
+        .from("member_round_teams")
+        .select("primary_nation_id, secondary_nation_id")
+        .eq("league_member_id", member.id)
+        .eq("round_id", ROUND_IDS.ro32)
+        .maybeSingle();
+      const ro32Primary = (ro32Row?.primary_nation_id as number | null) ?? (member.primary_nation_id as number | null);
+      const ro32Secondary = (ro32Row?.secondary_nation_id as number | null) ?? (member.secondary_nation_id as number | null);
+      carried =
+        ro32Primary != null && survivorSet.has(ro32Primary)
+          ? ro32Primary
+          : ro32Secondary != null && survivorSet.has(ro32Secondary)
+            ? ro32Secondary
+            : ro32Primary;
+    } else {
+      // QF onward: the single team carried from the PREVIOUS round (latest holding
+      // from any round other than this one — the current round's row is mutable).
+      const { data: prior } = await supabase
+        .from("member_round_teams")
+        .select("primary_nation_id")
+        .eq("league_member_id", member.id)
+        .neq("round_id", roundId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      carried = (prior?.primary_nation_id as number | null) ?? (member.primary_nation_id as number | null);
+    }
+    baseline = { primary_nation_id: carried, secondary_nation_id: null };
+    pools = { primary: survivorSet };
   }
 
   const result = computeRedraft(round, baseline, { primary_nation_id, secondary_nation_id }, pools);
