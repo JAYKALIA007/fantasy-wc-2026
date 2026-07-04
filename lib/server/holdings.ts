@@ -31,18 +31,33 @@ export interface HoldingRow extends HeldTeams {
   round_id: string;
 }
 
-// The team(s) a member holds going INTO a specific round: their re-draft holding
-// for that round if it exists, else their carried-forward group pick. Used to
-// score the per-match nation bonus against the team actually held that round.
+// The team(s) a member holds going INTO a specific round, used to score the
+// per-match nation bonus. Sticky carry-forward: the most recent holding set at or
+// before this round — pick a team once and it carries forward until you change it
+// again — else the group pick. From R16 on the secondary dissolves (the collapse):
+// there is exactly one team, so the secondary is always null for rank >= R16.
 export function holdingForRound(
   groupPick: HeldTeams,
   holdings: HoldingRow[],
   roundId: string
 ): HeldTeams {
-  const h = holdings.find((x) => x.round_id === roundId);
-  return h
-    ? { primary_nation_id: h.primary_nation_id, secondary_nation_id: h.secondary_nation_id }
+  const targetRank = ROUND_RANK[roundId] ?? 0;
+  let best: HoldingRow | null = null;
+  let bestRank = -1;
+  for (const h of holdings) {
+    const rank = ROUND_RANK[h.round_id] ?? 0;
+    if (rank <= targetRank && rank > bestRank) {
+      bestRank = rank;
+      best = h;
+    }
+  }
+  const held: HeldTeams = best
+    ? { primary_nation_id: best.primary_nation_id, secondary_nation_id: best.secondary_nation_id }
     : groupPick;
+  if (targetRank >= ROUND_RANK[ROUND_IDS.r16]) {
+    return { primary_nation_id: held.primary_nation_id, secondary_nation_id: null };
+  }
+  return held;
 }
 
 // The team(s) a member currently holds — the latest knockout holding by round

@@ -31,10 +31,38 @@ describe("holdingForRound", () => {
     expect(holdingForRound(groupPick, [ro32Holding], ROUND_IDS.group_stage)).toEqual(groupPick);
   });
 
-  it("picks the exact round, not the latest", () => {
+  it("does not carry a later round's holding back to an earlier round", () => {
     expect(holdingForRound(groupPick, [ro32Holding, r16Holding], ROUND_IDS.ro32)).toEqual({
       primary_nation_id: 10,
       secondary_nation_id: 20,
+    });
+  });
+
+  it("carries the RO32 primary forward to R16 with the secondary dropped (collapse)", () => {
+    expect(holdingForRound(groupPick, [ro32Holding], ROUND_IDS.r16)).toEqual({
+      primary_nation_id: 10,
+      secondary_nation_id: null,
+    });
+  });
+
+  it("prefers an explicit R16 holding over the carried-forward RO32 one", () => {
+    expect(holdingForRound(groupPick, [ro32Holding, r16Holding], ROUND_IDS.r16)).toEqual({
+      primary_nation_id: 30,
+      secondary_nation_id: null,
+    });
+  });
+
+  it("carries forward and nulls the secondary at rounds beyond R16 (e.g. QF)", () => {
+    expect(holdingForRound(groupPick, [ro32Holding], ROUND_IDS.qf)).toEqual({
+      primary_nation_id: 10,
+      secondary_nation_id: null,
+    });
+  });
+
+  it("carries the group pick forward to R16 with the secondary dropped when never redrafted", () => {
+    expect(holdingForRound(groupPick, [], ROUND_IDS.r16)).toEqual({
+      primary_nation_id: 1,
+      secondary_nation_id: null,
     });
   });
 });

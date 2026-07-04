@@ -164,11 +164,13 @@ export async function POST(request: Request) {
   const memberIds = (leagueMembers ?? []).map((m) => m.id as string);
   const holdingsByMember = new Map<string, HoldingRow[]>();
   if (memberIds.length > 0) {
+    // Load ALL of a member's holdings (every round), not just this match's round —
+    // holdingForRound does a sticky walk-back to the most recent holding <= this
+    // round, so it needs the full history to carry a team forward correctly.
     const { data: holdingRows, error: holdingsError } = await supabase
       .from("member_round_teams")
       .select("league_member_id, round_id, primary_nation_id, secondary_nation_id")
-      .in("league_member_id", memberIds)
-      .eq("round_id", match.round_id);
+      .in("league_member_id", memberIds);
     if (holdingsError) {
       return Response.json(
         { error: `Failed to load re-draft holdings for nation bonus: ${holdingsError.message}` },
