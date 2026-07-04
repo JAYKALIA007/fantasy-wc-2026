@@ -114,6 +114,29 @@ The swap penalty is the only cost; there is no clawback of past points.
 
 ---
 
+## Operational runbook — awarding progression bonuses
+
+Progression bonuses are **awarded manually, one migration per milestone** — there
+is **no runtime trigger** (`lib/server/progression.ts` is a pure engine that no
+route calls). Repeat this at each round boundary once results are in:
+
+| Milestone | Migration | Amounts | Scored against |
+|---|---|---|---|
+| reach-RO32 | `024` ✅ | primary +3 / secondary +6 | onboarding picks (`league_members`) |
+| reach-RO16 | `029` ✅ | primary +10 / secondary +20 (farewell) | RO32-held teams (`member_round_teams` @ ro32, else onboarding) |
+| reach-QF | **TODO** | +20 | R16-held single team |
+| reach-SF | **TODO** | +30 | QF-held single team |
+| win-bronze | **TODO** | +35 | — |
+| reach-Final | **TODO** | +40 | SF-held single team |
+| win | **TODO** | +50 | Final-held single team |
+
+From RO16 on it is **one team** (the collapse), so **QF onward is primary-only —
+no secondary rows**. "Reached round X" = the held team's `nations.eliminated =
+false` at that boundary. Always `on conflict (league_member_id, milestone,
+nation_id) do nothing` for idempotency. **⚠️ Don't forget reach-QF after the RO16 ties.**
+
+---
+
 ## Worked example
 
 Player holds primary **Spain** (alive, in RO32) and secondary **Curaçao** (dark
