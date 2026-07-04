@@ -195,13 +195,18 @@ export default async function ProfilePage() {
                 </div>
               )}
               {secondaryNation && (
-                <div style={{ flex: 1, background: "var(--surf2)", border: "2px solid var(--g3)", borderRadius: 12, padding: "14px 10px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, boxShadow: "0 0 0 3px rgba(0,184,92,0.1)" }}>
-                  <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "var(--g2)" }}>Wildcard</span>
-                  <span style={{ fontSize: 36, lineHeight: 1 }}>{secondaryFlag}</span>
-                  <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "var(--n0)", textAlign: "center" }}>{secondaryNation.name}</span>
+                <div style={{ flex: 1, background: "var(--surf2)", border: "1.5px dashed var(--n7)", borderRadius: 12, padding: "14px 10px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, opacity: 0.5 }}>
+                  <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "var(--n5)" }}>Wildcard · retired</span>
+                  <span style={{ fontSize: 36, lineHeight: 1, filter: "grayscale(1)" }}>{secondaryFlag}</span>
+                  <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "var(--n4)", textAlign: "center", textDecoration: "line-through" }}>{secondaryNation.name}</span>
                 </div>
               )}
             </div>
+            {secondaryNation && (
+              <div style={{ marginTop: 12, fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n5)", lineHeight: 1.4 }}>
+                Wildcards dissolve at the Round of 16 — you now carry <strong>one team</strong> forward. Your wildcard earned its bonuses through the RO32; it no longer scores.
+              </div>
+            )}
           </div>
         )}
 

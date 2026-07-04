@@ -90,6 +90,7 @@ export default async function RanksPage() {
       leagueId={leagueId}
       roundId={ROUND_ID}
       ro32RoundId={ROUND_IDS.ro32}
+      r16RoundId={ROUND_IDS.r16}
       myRank={myRank}
       myPoints={myRankRow?.total_points ?? 0}
       myPrimaryNationName={myPrimaryNationName}
