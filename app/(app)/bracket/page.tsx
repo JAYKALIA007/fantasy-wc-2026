@@ -6,10 +6,15 @@ import { resolveAdvancers, scoreBracket, type BracketTie } from "@/lib/server/br
 
 type NationRef = { id: number; name: string };
 
-export default async function BracketPage() {
+export default async function BracketPage({ searchParams }: { searchParams: Promise<{ round?: string }> }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/join");
+
+  const sp = await searchParams;
+  const round: "ro32" | "r16" = sp.round === "ro32" ? "ro32" : "r16";
+  const roundId = ROUND_IDS[round];
+  const roundLabel = round === "ro32" ? "RO32" : "RO16";
 
   const { data: membership } = await supabase
     .from("league_members")
@@ -26,7 +31,7 @@ export default async function BracketPage() {
   const { data: matchesRaw } = await supabase
     .from("matches")
     .select("id, kickoff_time, home_nation:home_nation_id(id, name), away_nation:away_nation_id(id, name)")
-    .eq("round_id", ROUND_IDS.ro32)
+    .eq("round_id", roundId)
     .order("kickoff_time", { ascending: true });
   const matches = (matchesRaw ?? []).map((m) => {
     const home = (Array.isArray(m.home_nation) ? m.home_nation[0] : m.home_nation) as NationRef;
@@ -38,12 +43,17 @@ export default async function BracketPage() {
   const lockAt = matches.length > 0 ? new Date(new Date(matches[0].kickoff_time).getTime() - BRACKET_LOCK_LEAD_MS).toISOString() : null;
   const locked = lockAt ? new Date() >= new Date(lockAt) : false;
 
+  // Scope picks to THIS round's ties — the table is shared across rounds (keyed by
+  // match_id), so filter by the round's match ids or RO32 picks would leak in.
+  const matchIds = matches.map((m) => m.id);
+
   // This user's existing picks.
   const { data: myPicksRaw } = await supabase
     .from("ro32_bracket_picks")
     .select("match_id, advancer_nation_id")
     .eq("league_id", leagueId)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .in("match_id", matchIds);
   const myPicks: Record<number, number> = {};
   for (const p of myPicksRaw ?? []) myPicks[p.match_id as number] = p.advancer_nation_id as number;
 
@@ -59,12 +69,13 @@ export default async function BracketPage() {
   const { data: allPicks } = await supabase
     .from("ro32_bracket_picks")
     .select("user_id, match_id, advancer_nation_id")
-    .eq("league_id", leagueId);
+    .eq("league_id", leagueId)
+    .in("match_id", matchIds);
 
   const { data: eliminated } = await supabase
     .from("nations")
     .select("id")
-    .eq("eliminated_in_round", "ro32");
+    .eq("eliminated_in_round", round);
   const eliminatedIds = new Set((eliminated ?? []).map((n) => n.id as number));
 
   const ties: BracketTie[] = matches.map((m) => ({ match_id: m.id, home_nation_id: m.home.id, away_nation_id: m.away.id }));
@@ -82,6 +93,7 @@ export default async function BracketPage() {
   return (
     <BracketClient
       leagueId={leagueId}
+      roundLabel={roundLabel}
       matches={matches}
       myPicks={myPicks}
       locked={locked}

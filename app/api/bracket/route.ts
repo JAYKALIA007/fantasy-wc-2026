@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { ROUND_IDS, BRACKET_LOCK_LEAD_MS } from "@/lib/constants";
+import { BRACKET_LOCK_LEAD_MS } from "@/lib/constants";
 
 interface BracketBody {
   picks: { match_id: number; advancer_nation_id: number }[];
@@ -30,14 +30,16 @@ export async function POST(request: Request) {
   if (!membership) return Response.json({ error: "Not a member" }, { status: 403 });
   const leagueId = membership.league_id as string;
 
-  // The 16 RO32 ties, with their two valid teams and kickoff.
+  // The ties being submitted, with their two valid teams and kickoff. Round-
+  // agnostic: matches are looked up by the submitted ids, so the same endpoint
+  // serves the RO32 and RO16 brackets.
   const { data: matches } = await supabase
     .from("matches")
     .select("id, home_nation_id, away_nation_id, kickoff_time")
-    .eq("round_id", ROUND_IDS.ro32);
+    .in("id", body.picks.map((p) => p.match_id));
   const byId = new Map((matches ?? []).map((m) => [m.id as number, m]));
 
-  // Bracket locks at the earliest RO32 kickoff.
+  // Bracket locks at the earliest kickoff among the submitted ties.
   const earliest = (matches ?? []).reduce<number | null>((min, m) => {
     const t = new Date(m.kickoff_time as string).getTime();
     return min === null || t < min ? t : min;

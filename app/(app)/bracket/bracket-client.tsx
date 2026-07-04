@@ -11,6 +11,7 @@ type Standing = { user_id: string; correct: number; picked: number; name: string
 
 type Props = {
   leagueId: string;
+  roundLabel: string;
   matches: Match[];
   myPicks: Record<number, number>;
   locked: boolean;
@@ -20,7 +21,7 @@ type Props = {
   advancers: Record<number, number>;
 };
 
-export default function BracketClient({ matches, myPicks, locked, lockAt, standings, resolvedCount, advancers }: Props) {
+export default function BracketClient({ roundLabel, matches, myPicks, locked, lockAt, standings, resolvedCount, advancers }: Props) {
   const router = useRouter();
   const [picks, setPicks] = useState<Record<number, number>>(myPicks);
   const [saving, setSaving] = useState(false);
@@ -118,9 +119,9 @@ export default function BracketClient({ matches, myPicks, locked, lockAt, standi
 
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", padding: "16px 14px 90px", minHeight: "100%", background: "var(--bg)" }}>
-      <h1 style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 30, color: "var(--n0)", margin: "0 0 4px" }}>RO32 Bracket</h1>
+      <h1 style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 30, color: "var(--n0)", margin: "0 0 4px" }}>{roundLabel} Bracket</h1>
       <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 6px", lineHeight: 1.5 }}>
-        Pick who advances in each of the 16 ties. {locked ? "Bracket is locked." : "Lock"}{!locked && lockAt ? ` at ${toISTWithDay(lockAt)}.` : ""}
+        Pick who advances in each of the {matches.length} ties. {locked ? "Bracket is locked." : "Lock"}{!locked && lockAt ? ` at ${toISTWithDay(lockAt)}.` : ""}
       </p>
       {!locked && (
         <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12, color: pickedCount === matches.length ? "var(--g2)" : "var(--n5)", margin: "0 0 14px" }}>
