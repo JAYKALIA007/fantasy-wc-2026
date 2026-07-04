@@ -8,8 +8,10 @@ import { toISTWithDay } from "@/lib/utils/date";
 type Nation = { id: number; name: string; fifa_ranking: number | null };
 
 const PRIMARY_SWAP_COST = 3;
+const R16_SWAP_COST = 5;
 
 type Props = {
+  round: "ro32" | "r16";
   leagueId: string;
   windowOpen: boolean;
   closesAt: string | null;
@@ -22,6 +24,7 @@ type Props = {
 };
 
 export default function RedraftClient({
+  round,
   leagueId,
   windowOpen,
   closesAt,
@@ -33,6 +36,11 @@ export default function RedraftClient({
   secondaryInvalidated,
 }: Props) {
   const router = useRouter();
+  const isR16 = round === "r16";
+  const roundLabel = isR16 ? "Round of 16" : "Round of 32";
+  const swapCost = isR16 ? R16_SWAP_COST : PRIMARY_SWAP_COST;
+  const maxStep = isR16 ? 2 : 3;
+
   const [step, setStep] = useState(1);
   const [primaryId, setPrimaryId] = useState<number | null>(currentPrimary);
   const [secondaryId, setSecondaryId] = useState<number | null>(presetSecondary);
@@ -40,18 +48,24 @@ export default function RedraftClient({
   const [error, setError] = useState<string | null>(null);
 
   const primarySwapped = primaryId !== null && primaryId !== originalPrimary;
-  const totalCost = primarySwapped ? PRIMARY_SWAP_COST : 0;
+  const totalCost = primarySwapped ? swapCost : 0;
 
   const nameOf = (id: number | null, pool: Nation[]) => pool.find((n) => n.id === id)?.name ?? "—";
 
   async function submit() {
-    if (primaryId == null || secondaryId == null) return;
+    if (primaryId == null) return;
+    if (!isR16 && secondaryId == null) return;
     setSaving(true);
     setError(null);
     const res = await fetch("/api/redraft", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ league_id: leagueId, round: "ro32", primary_nation_id: primaryId, secondary_nation_id: secondaryId }),
+      body: JSON.stringify({
+        league_id: leagueId,
+        round,
+        primary_nation_id: primaryId,
+        secondary_nation_id: isR16 ? null : secondaryId,
+      }),
     });
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -70,7 +84,7 @@ export default function RedraftClient({
           <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
           <h1 style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 24, color: "var(--n0)", margin: 0 }}>Re-draft closed</h1>
           <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 14, color: "var(--n5)", marginTop: 8, lineHeight: 1.5 }}>
-            The Round of 32 re-draft window isn&apos;t open right now. Your current teams stay as they are.
+            The {roundLabel} re-draft window isn&apos;t open right now. Your current team stays as it is.
           </p>
         </div>
       </div>
@@ -78,33 +92,39 @@ export default function RedraftClient({
   }
 
   const closeLabel = closesAt ? toISTWithDay(closesAt) : null;
+  const nextDisabled = step === 1 ? primaryId == null : !isR16 && secondaryId == null;
 
   return (
     <div style={wrap}>
-      {/* Header / progress */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <span style={labelCaps}>Re-draft · Round of 32</span>
+        <span style={labelCaps}>Re-draft · {roundLabel}</span>
         {closeLabel && <span style={{ ...labelCaps, color: "var(--g2)" }}>Closes {closeLabel}</span>}
       </div>
       <div style={{ display: "flex", gap: 5, marginBottom: 18 }}>
-        {[1, 2, 3].map((s) => (
+        {Array.from({ length: maxStep }, (_, i) => i + 1).map((s) => (
           <div key={s} style={{ flex: s === step ? 2 : 1, height: 6, borderRadius: 4, backgroundColor: s < step ? "var(--g3)" : s === step ? "var(--n0)" : "var(--n8)", transition: "all 0.3s ease" }} />
         ))}
       </div>
 
       {step === 1 && (
         <Picker
-          title="Your primary"
-          subtitle={<>Pick from the 12 highest-ranked survivors. Keeping is free — any swap costs <strong style={{ color: "var(--r2)" }}>−{PRIMARY_SWAP_COST} pts</strong>.</>}
+          title={isR16 ? "Your team" : "Your primary"}
+          subtitle={
+            isR16 ? (
+              <>Pick any surviving team. Keeping is free — switching to a team you didn&apos;t hold costs <strong style={{ color: "var(--r2)" }}>−{swapCost} pts</strong>.</>
+            ) : (
+              <>Pick from the 12 highest-ranked survivors. Keeping is free — any swap costs <strong style={{ color: "var(--r2)" }}>−{swapCost} pts</strong>.</>
+            )
+          }
           pool={primaryPool}
           selectedId={primaryId}
           keepId={originalPrimary}
-          swapCost={PRIMARY_SWAP_COST}
+          swapCost={swapCost}
           onSelect={setPrimaryId}
         />
       )}
 
-      {step === 2 && (
+      {step === 2 && !isR16 && (
         <>
           {secondaryInvalidated && (
             <div style={{ background: "var(--gbg)", border: "1px solid var(--g3)", borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
@@ -125,23 +145,22 @@ export default function RedraftClient({
         </>
       )}
 
-      {step === 3 && (
+      {step === maxStep && (
         <div style={{ ...card, padding: "18px 16px" }}>
           <h1 style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 26, color: "var(--n0)", margin: "0 0 16px" }}>Confirm re-draft</h1>
-          <SummaryRow label="Primary" from={nameOf(originalPrimary, primaryPool)} to={nameOf(primaryId, primaryPool)} cost={primarySwapped ? PRIMARY_SWAP_COST : 0} />
-          <SummaryRow label="Wildcard" from={nameOf(presetSecondary, secondaryPool)} to={nameOf(secondaryId, secondaryPool)} cost={0} />
+          <SummaryRow label={isR16 ? "Team" : "Primary"} from={nameOf(originalPrimary, primaryPool)} to={nameOf(primaryId, primaryPool)} cost={primarySwapped ? swapCost : 0} />
+          {!isR16 && <SummaryRow label="Wildcard" from={nameOf(presetSecondary, secondaryPool)} to={nameOf(secondaryId, secondaryPool)} cost={0} />}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--n8)", marginTop: 12, paddingTop: 14 }}>
             <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 14, color: "var(--n0)", textTransform: "uppercase", letterSpacing: 0.8 }}>Total cost</span>
             <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 22, color: totalCost > 0 ? "var(--r2)" : "var(--g2)" }}>{totalCost > 0 ? `−${totalCost} pts` : "Free"}</span>
           </div>
           {error && <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--r2)", marginTop: 12 }}>{error}</p>}
           <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", margin: "12px 0 0", lineHeight: 1.5 }}>
-            ↻ You can come back and change your teams as many times as you like until the window closes{closeLabel ? ` (${closeLabel})` : ""}. Only your final pick counts — swapping back to a team you already had costs nothing.
+            ↻ You can come back and change until the window closes{closeLabel ? ` (${closeLabel})` : ""}. Only your final pick counts — swapping back to a team you already had costs nothing.
           </p>
         </div>
       )}
 
-      {/* Footer */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 18 }}>
         <div>
           <div style={{ ...labelCaps, marginBottom: 2 }}>Cost so far</div>
@@ -151,18 +170,18 @@ export default function RedraftClient({
           {step > 1 && (
             <button onClick={() => setStep((s) => s - 1)} style={btnGhost}>Back</button>
           )}
-          {step < 3 && (
+          {step < maxStep && (
             <button
               onClick={() => setStep((s) => s + 1)}
-              disabled={step === 1 ? primaryId == null : secondaryId == null}
-              style={{ ...btnPrimary, opacity: (step === 1 ? primaryId == null : secondaryId == null) ? 0.5 : 1 }}
+              disabled={nextDisabled}
+              style={{ ...btnPrimary, opacity: nextDisabled ? 0.5 : 1 }}
             >
-              {step === 1 ? "Next: wildcard →" : "Review →"}
+              {isR16 ? "Review →" : step === 1 ? "Next: wildcard →" : "Review →"}
             </button>
           )}
-          {step === 3 && (
-            <button onClick={submit} disabled={saving || primaryId == null || secondaryId == null} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}>
-              {saving ? "Saving…" : totalCost > 0 ? `Confirm · −${totalCost}` : "Lock my teams"}
+          {step === maxStep && (
+            <button onClick={submit} disabled={saving || primaryId == null || (!isR16 && secondaryId == null)} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}>
+              {saving ? "Saving…" : totalCost > 0 ? `Confirm · −${totalCost}` : isR16 ? "Lock my team" : "Lock my teams"}
             </button>
           )}
         </div>
