@@ -223,6 +223,19 @@ export default async function ProfilePage() {
           </div>
         </Link>
 
+        {/* RO32 bracket history */}
+        <Link href="/bracket?round=ro32" style={{ textDecoration: "none", display: "block" }}>
+          <div style={{ background: "var(--surf)", borderRadius: 14, padding: "14px 16px", boxShadow: "var(--sh-sm)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 14, color: "var(--n0)" }}>📜 RO32 bracket</div>
+              <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)", marginTop: 2 }}>Your Round of 32 picks &amp; results</div>
+            </div>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--n6)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 4l4 4-4 4" />
+            </svg>
+          </div>
+        </Link>
+
         {/* Rules link */}
         <Link href="/rules" style={{ textDecoration: "none", display: "block" }}>
           <div style={{ background: "var(--surf)", borderRadius: 14, padding: "14px 16px", boxShadow: "var(--sh-sm)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>

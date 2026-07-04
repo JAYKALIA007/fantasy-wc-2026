@@ -484,26 +484,6 @@ export default async function HomePage() {
             <span style={{ color: "var(--n0)", fontSize: 22, flexShrink: 0 }}>›</span>
           </Link>
         )}
-        {showRo32History && (
-          <Link
-            href="/bracket?round=ro32"
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-              background: "var(--surf)", border: "1px solid var(--n8)", borderRadius: 14,
-              padding: "12px 14px", textDecoration: "none",
-            }}
-          >
-            <div>
-              <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "var(--n4)", letterSpacing: 0.3 }}>
-                📜 RO32 bracket
-              </div>
-              <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n6)", marginTop: 2 }}>
-                Your Round of 32 picks & results
-              </div>
-            </div>
-            <span style={{ color: "var(--n6)", fontSize: 18, flexShrink: 0 }}>›</span>
-          </Link>
-        )}
         {/* Matchday hero card — all matches in the next batch (same kickoff) in one card */}
         {nextBatch.length > 0 && (
           <div
@@ -1255,6 +1235,26 @@ export default async function HomePage() {
               );
             })}
           </div>
+        )}
+        {showRo32History && (
+          <Link
+            href="/bracket?round=ro32"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+              background: "var(--surf)", border: "1px solid var(--n8)", borderRadius: 14,
+              padding: "12px 14px", textDecoration: "none",
+            }}
+          >
+            <div>
+              <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "var(--n4)", letterSpacing: 0.3 }}>
+                📜 RO32 bracket
+              </div>
+              <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n6)", marginTop: 2 }}>
+                Your Round of 32 picks & results
+              </div>
+            </div>
+            <span style={{ color: "var(--n6)", fontSize: 18, flexShrink: 0 }}>›</span>
+          </Link>
         )}
       </div>
     </div>
