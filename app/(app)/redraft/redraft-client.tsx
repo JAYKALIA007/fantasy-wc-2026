@@ -8,7 +8,7 @@ import { toISTWithDay } from "@/lib/utils/date";
 type Nation = { id: number; name: string; fifa_ranking: number | null };
 
 const PRIMARY_SWAP_COST = 3;
-const R16_SWAP_COST = 5;
+const R16_SWAP_COST = 10;
 
 type Props = {
   round: "ro32" | "r16";

@@ -115,10 +115,10 @@ export default async function RulesPage() {
           <p style={{ ...note, margin: "8px 0 4px" }}>Board reopens each knockout round. Keep your team free, or swap for a cost.</p>
           <Row label="RO32 — primary swap" value="−3 pts" sub="Pick from top 12 ranked survivors" />
           <Row label="RO32 — secondary swap" value="Free" sub="Pick from other 20" />
-          <Row label="R16 swap" value="−5 pts" />
-          <Row label="QF swap" value="−8 pts" />
-          <Row label="SF swap" value="−10 pts" />
-          <Row label="Final swap" value="−12 pts" />
+          <Row label="R16 swap" value="−10 pts" />
+          <Row label="QF swap" value="−15 pts" />
+          <Row label="SF swap" value="−20 pts" />
+          <Row label="Final swap" value="−25 pts" />
           <p style={note}>Secondary team runs through RO32 only. If it reaches R16 you get +20 farewell bonus, then it dissolves.</p>
         </div>
       </details>

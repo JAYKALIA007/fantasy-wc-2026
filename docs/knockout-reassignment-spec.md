@@ -47,10 +47,10 @@ impossible** from RO16 on (16 teams < 19 players) and breaks entirely by the QF
 | Board opens (entering) | Penalty |
 |---|---|
 | RO32 (re-draft) | primary **−3** / secondary **free** |
-| RO16 | **−5** |
-| QF | **−8** |
-| SF | **−10** |
-| Final | **−12** |
+| RO16 | **−10** |
+| QF | **−15** |
+| SF | **−20** |
+| Final | **−25** |
 
 Secondary switch at RO32 is free — the re-draft is the one moment players can
 adjust their wildcard without cost. Only the primary swap at RO32 costs −3.
@@ -107,10 +107,10 @@ The swap penalty is the only cost; there is no clawback of past points.
 | **Group → RO32** (re-draft window) | pick primary (top 12) + secondary (20) | −3 / free | — |
 | **During RO32** | primary + secondary | — | reach-RO16: primary +10, secondary +20 (2×) |
 | **RO32 → RO16** (collapse) | → one team (pick if both survive) | free (forced) | secondary +20 farewell, then dissolves |
-| **RO16 → QF** | one team | −5 | reach-QF +20 |
-| **QF → SF** | one team | −8 | reach-SF +30 |
-| **SF → Final** | one team | −10 | reach-Final +40 |
-| **Final** | one team | −12 | Win +50 |
+| **RO16 → QF** | one team | −10 | reach-QF +20 |
+| **QF → SF** | one team | −15 | reach-SF +30 |
+| **SF → Final** | one team | −20 | reach-Final +40 |
+| **Final** | one team | −25 | Win +50 |
 
 ---
 

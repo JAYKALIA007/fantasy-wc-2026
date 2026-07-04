@@ -61,10 +61,10 @@ describe("computeRedraft — single-team rounds", () => {
   const pools = { primary: new Set([1, 2, 3, 4, 5, 6, 7, 8]) };
 
   it("escalating ladder per round", () => {
-    expect(SWAP_PENALTY.r16).toBe(5);
-    expect(SWAP_PENALTY.qf).toBe(8);
-    expect(SWAP_PENALTY.sf).toBe(10);
-    expect(SWAP_PENALTY.final).toBe(12);
+    expect(SWAP_PENALTY.r16).toBe(10);
+    expect(SWAP_PENALTY.qf).toBe(15);
+    expect(SWAP_PENALTY.sf).toBe(20);
+    expect(SWAP_PENALTY.final).toBe(25);
   });
 
   it("keeps single team — free", () => {
@@ -74,9 +74,9 @@ describe("computeRedraft — single-team rounds", () => {
     expect(r.holding.secondary_nation_id).toBeNull();
   });
 
-  it("swaps single team at QF — charges −8", () => {
+  it("swaps single team at QF — charges −15", () => {
     const r = computeRedraft("qf", { primary_nation_id: 3, secondary_nation_id: null }, { primary_nation_id: 7 }, pools);
-    expect(r.penalties).toEqual([{ pick_type: "primary", amount: 8 }]);
+    expect(r.penalties).toEqual([{ pick_type: "primary", amount: 15 }]);
   });
 
   it("ignores any secondary submitted at a single-team round", () => {

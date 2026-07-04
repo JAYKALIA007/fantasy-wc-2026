@@ -11,11 +11,11 @@
 // team on the escalating ladder. See docs/knockout-reassignment-spec.md §3.
 
 export const SWAP_PENALTY = {
-  ro32: 3, // primary only; secondary is free at RO32
-  r16: 5,
-  qf: 8,
-  sf: 10,
-  final: 12,
+  ro32: 3, // primary only; secondary is free at RO32 (round closed at −3)
+  r16: 10,
+  qf: 15,
+  sf: 20,
+  final: 25,
 } as const;
 
 export type RedraftRound = keyof typeof SWAP_PENALTY;
