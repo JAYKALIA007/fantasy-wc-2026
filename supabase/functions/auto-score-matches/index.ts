@@ -34,6 +34,22 @@ const ROUND_ELIM_TAG: Record<string, string> = {
   "a0000000-0000-0000-0000-000000000008": "bronze",
 };
 
+const RO16_ROUND_ID = "a0000000-0000-0000-0000-000000000002";
+
+// Round progression rank — mirror of ROUND_RANK in lib/server/holdings.ts. Drives
+// sticky carry-forward of a member's held team and the R16 secondary collapse:
+// the held team is the most recent holding at or before the match's round, and
+// from R16 on (rank >= r16) the secondary dissolves — one team, scored 1×.
+const ROUND_RANK: Record<string, number> = {
+  "a0000000-0000-0000-0000-000000000001": 0, // group
+  "a0000000-0000-0000-0000-000000000003": 1, // ro32
+  "a0000000-0000-0000-0000-000000000002": 2, // r16
+  "a0000000-0000-0000-0000-000000000004": 3, // qf
+  "a0000000-0000-0000-0000-000000000005": 4, // sf
+  "a0000000-0000-0000-0000-000000000008": 5, // bronze
+  "a0000000-0000-0000-0000-000000000006": 6, // final
+};
+
 const SITE_URL = Deno.env.get("SITE_URL") ?? "https://fantasy-wc-2026-ashy.vercel.app";
 
 interface Nation {
@@ -418,35 +434,47 @@ serve(async (_req: Request) => {
         .eq("league_id", league.id as string);
       const memberIds = (leagueMembers ?? []).map((m) => m.id as string);
 
-      const heldByMember = new Map<string, { primary: number | null; secondary: number | null }>();
+      // Sticky carry-forward (mirror of holdingForRound): the most recent holding
+      // AT OR BEFORE this match's round, else the group pick. A member who never
+      // redrafted at R16 still carries their RO32 team here — NOT their onboarding
+      // pick. From R16 on the secondary dissolves (the collapse): one team, 1×.
+      const targetRank = ROUND_RANK[match.round_id] ?? 0;
+      const dropSecondary = targetRank >= ROUND_RANK[RO16_ROUND_ID];
+      const bestByMember = new Map<string, { rank: number; primary: number | null; secondary: number | null }>();
       if (memberIds.length > 0) {
         const { data: holdings } = await supabase
           .from("member_round_teams")
-          .select("league_member_id, primary_nation_id, secondary_nation_id")
-          .eq("round_id", match.round_id)
+          .select("league_member_id, round_id, primary_nation_id, secondary_nation_id")
           .in("league_member_id", memberIds);
         for (const hld of holdings ?? []) {
-          heldByMember.set(hld.league_member_id as string, {
-            primary: hld.primary_nation_id as number | null,
-            secondary: hld.secondary_nation_id as number | null,
-          });
+          const rank = ROUND_RANK[hld.round_id as string] ?? 0;
+          if (rank > targetRank) continue;
+          const cur = bestByMember.get(hld.league_member_id as string);
+          if (!cur || rank > cur.rank) {
+            bestByMember.set(hld.league_member_id as string, {
+              rank,
+              primary: hld.primary_nation_id as number | null,
+              secondary: hld.secondary_nation_id as number | null,
+            });
+          }
         }
       }
 
       await supabase.from("nation_bonus_points").delete().eq("match_id", match.id);
       const bonusRecords: { league_member_id: string; match_id: number; nation_id: number; pick_type: string; points: number }[] = [];
       for (const member of leagueMembers ?? []) {
-        const held = heldByMember.get(member.id as string) ?? {
-          primary: member.primary_nation_id as number | null,
-          secondary: member.secondary_nation_id as number | null,
-        };
+        const best = bestByMember.get(member.id as string);
+        const held = best
+          ? { primary: best.primary, secondary: best.secondary }
+          : { primary: member.primary_nation_id as number | null, secondary: member.secondary_nation_id as number | null };
+        const secondary = dropSecondary ? null : held.secondary;
         if (held.primary !== null) {
           const pts = held.primary === homeNationId ? homePoints : held.primary === awayNationId ? awayPoints : 0;
           if (pts > 0) bonusRecords.push({ league_member_id: member.id, match_id: match.id, nation_id: held.primary, pick_type: "primary", points: pts });
         }
-        if (held.secondary !== null) {
-          const pts = held.secondary === homeNationId ? homePoints * 2 : held.secondary === awayNationId ? awayPoints * 2 : 0;
-          if (pts > 0) bonusRecords.push({ league_member_id: member.id, match_id: match.id, nation_id: held.secondary, pick_type: "secondary", points: pts });
+        if (secondary !== null) {
+          const pts = secondary === homeNationId ? homePoints * 2 : secondary === awayNationId ? awayPoints * 2 : 0;
+          if (pts > 0) bonusRecords.push({ league_member_id: member.id, match_id: match.id, nation_id: secondary, pick_type: "secondary", points: pts });
         }
       }
       if (bonusRecords.length > 0) await supabase.from("nation_bonus_points").insert(bonusRecords);
