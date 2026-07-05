@@ -12,6 +12,9 @@ function mockSupabase(tables: Record<string, unknown[]>) {
         eq: () => chain,
         in: () => chain,
         not: () => chain,
+        // Paged reads call .range(); returning the full set once (< PAGE_SIZE)
+        // makes fetchAll stop after a single page.
+        range: () => chain,
         then: (resolve: (v: unknown) => unknown) => resolve(result),
       };
       return chain;

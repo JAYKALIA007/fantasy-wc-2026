@@ -18,6 +18,28 @@ export interface LeaderboardRow {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseLike = { from: (table: string) => any };
 
+// Supabase/PostgREST caps every response at the project's "Max rows" setting
+// (default 1000). Any table that grows past it is SILENTLY truncated — the
+// finished-predictions read crossed 1000 mid-tournament and started dropping
+// rows, under-counting whoever's rows landed in the tail. fetchAll pages through
+// with .range() until a short page, so the total always reflects every row.
+// PAGE_SIZE must be ≤ the "Max rows" setting for the short-page stop to be valid.
+const PAGE_SIZE = 1000;
+
+async function fetchAll<T>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  makeQuery: () => any
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await makeQuery().range(from, from + PAGE_SIZE - 1);
+    if (error || !data || data.length === 0) break;
+    out.push(...(data as T[]));
+    if (data.length < PAGE_SIZE) break;
+  }
+  return out;
+}
+
 // roundId null = cumulative total across ALL rounds (tournament-long total).
 // Pass a specific round id to scope EVERY component (predictions, nation bonus,
 // live checkpoints, progression, swap penalties) to that round — a true
@@ -38,87 +60,86 @@ export async function computeLeaderboard(
     adminUserId
   );
 
-  const emptyRows = Promise.resolve({ data: [] as { league_member_id: string; points: number }[] });
-  const emptyHoldings = Promise.resolve({
-    data: [] as (HoldingRow & { league_member_id: string })[],
-  });
-  const emptyLivePoints = Promise.resolve({
-    data: [] as { user_id: string; points: number }[],
-  });
+  const hasMembers = memberIds.length > 0;
+  const emptyArr = <T,>() => Promise.resolve([] as T[]);
 
-  // Predictions — scoped by the match's round.
-  let predictionsQuery = supabase
-    .from("predictions")
-    .select("user_id, points, matches!inner(status, round_id)")
-    .eq("league_id", leagueId)
-    .eq("matches.status", "finished");
-  if (roundId) predictionsQuery = predictionsQuery.eq("matches.round_id", roundId);
-
-  // Nation bonus — scoped by the match's round.
-  let nationBonusQuery = supabase
-    .from("nation_bonus_points")
-    .select("league_member_id, points, matches!inner(status, round_id)")
-    .in("league_member_id", memberIds)
-    .eq("matches.status", "finished");
-  if (roundId) nationBonusQuery = nationBonusQuery.eq("matches.round_id", roundId);
-
-  // Progression bonus — EXCLUDED from per-round views. A "reach-X" milestone
-  // (e.g. reach-RO32 = +3/+6 for surviving the group stage) is banked between
-  // rounds against picks held before the round's matches are played, so it
-  // belongs to no single round's "points earned this round" total. It appears
-  // only in the cumulative (roundId === null) Overall standing.
-  const progressionQuery = roundId
-    ? emptyRows
-    : supabase
-        .from("progression_bonus_points")
-        .select("league_member_id, points")
-        .in("league_member_id", memberIds);
-
-  // Swap penalties — EXCLUDED from per-round views. The redraft (and its cost)
-  // is paid at the redraft window before the round's first match kicks off, so
-  // like the progression bonus it is a between-rounds event, not points scored
-  // in-round. A per-round standing is gross match points only; the redraft cost
-  // appears in the cumulative Overall standing.
-  const penaltyQuery = roundId
-    ? Promise.resolve({ data: [] as { league_member_id: string; amount: number }[] })
-    : supabase
-        .from("swap_penalties")
-        .select("league_member_id, amount")
-        .in("league_member_id", memberIds);
-
-  // Live checkpoints — scoped by the match's round (only join when scoping).
-  const liveQuery = roundId
-    ? supabase
-        .from("live_checkpoint_predictions")
-        .select("user_id, points, matches!inner(round_id)")
+  // Every read below is paged through fetchAll so none can be truncated at the
+  // "Max rows" cap. Progression + swap penalties are EXCLUDED from per-round
+  // views: a "reach-X" milestone and the redraft cost are both banked BETWEEN
+  // rounds (against picks/holdings before the round kicks off), so they belong
+  // to no single round's "points earned this round" total — only the cumulative
+  // (roundId === null) Overall standing.
+  const [predictionRows, bonusRows, progressionRows, penaltyRows, holdingRows, liveRows] = await Promise.all([
+    // Predictions — scoped by the match's round.
+    fetchAll<{ user_id: string; points: number | null }>(() => {
+      let q = supabase
+        .from("predictions")
+        .select("user_id, points, matches!inner(status, round_id)")
         .eq("league_id", leagueId)
-        .not("points", "is", null)
-        .eq("matches.round_id", roundId)
-    : supabase
-        .from("live_checkpoint_predictions")
-        .select("user_id, points")
-        .eq("league_id", leagueId)
-        .not("points", "is", null);
-
-  const [finishedPredsResult, bonusResult, progressionResult, penaltyResult, holdingsResult, liveCheckpointResult] = await Promise.all([
-    predictionsQuery,
-    memberIds.length > 0 ? nationBonusQuery : emptyRows,
-    memberIds.length > 0 ? progressionQuery : emptyRows,
-    memberIds.length > 0 ? penaltyQuery : Promise.resolve({ data: [] as { league_member_id: string; amount: number }[] }),
-    memberIds.length > 0
-      ? supabase
-          .from("member_round_teams")
-          .select("league_member_id, round_id, primary_nation_id, secondary_nation_id")
-          .in("league_member_id", memberIds)
-      : emptyHoldings,
-    memberIds.length > 0 ? liveQuery : emptyLivePoints,
+        .eq("matches.status", "finished");
+      if (roundId) q = q.eq("matches.round_id", roundId);
+      return q;
+    }),
+    // Nation bonus — scoped by the match's round.
+    hasMembers
+      ? fetchAll<{ league_member_id: string; points: number }>(() => {
+          let q = supabase
+            .from("nation_bonus_points")
+            .select("league_member_id, points, matches!inner(status, round_id)")
+            .in("league_member_id", memberIds)
+            .eq("matches.status", "finished");
+          if (roundId) q = q.eq("matches.round_id", roundId);
+          return q;
+        })
+      : emptyArr<{ league_member_id: string; points: number }>(),
+    hasMembers && !roundId
+      ? fetchAll<{ league_member_id: string; points: number }>(() =>
+          supabase
+            .from("progression_bonus_points")
+            .select("league_member_id, points")
+            .in("league_member_id", memberIds)
+        )
+      : emptyArr<{ league_member_id: string; points: number }>(),
+    hasMembers && !roundId
+      ? fetchAll<{ league_member_id: string; amount: number }>(() =>
+          supabase
+            .from("swap_penalties")
+            .select("league_member_id, amount")
+            .in("league_member_id", memberIds)
+        )
+      : emptyArr<{ league_member_id: string; amount: number }>(),
+    hasMembers
+      ? fetchAll<HoldingRow & { league_member_id: string }>(() =>
+          supabase
+            .from("member_round_teams")
+            .select("league_member_id, round_id, primary_nation_id, secondary_nation_id")
+            .in("league_member_id", memberIds)
+        )
+      : emptyArr<HoldingRow & { league_member_id: string }>(),
+    // Live checkpoints — scoped by the match's round (only join when scoping).
+    hasMembers
+      ? fetchAll<{ user_id: string; points: number }>(() =>
+          roundId
+            ? supabase
+                .from("live_checkpoint_predictions")
+                .select("user_id, points, matches!inner(round_id)")
+                .eq("league_id", leagueId)
+                .not("points", "is", null)
+                .eq("matches.round_id", roundId)
+            : supabase
+                .from("live_checkpoint_predictions")
+                .select("user_id, points")
+                .eq("league_id", leagueId)
+                .not("points", "is", null)
+        )
+      : emptyArr<{ user_id: string; points: number }>(),
   ]);
 
   // Held primary per member: the latest re-draft holding if any, else the group
   // pick. Drives the nation shown on the leaderboard so it reflects redrafted
   // teams. Keyed by round, so group-stage standings are unaffected.
   const holdingsByMember = new Map<string, HoldingRow[]>();
-  for (const h of (holdingsResult.data ?? []) as (HoldingRow & { league_member_id: string })[]) {
+  for (const h of holdingRows) {
     const arr = holdingsByMember.get(h.league_member_id) ?? [];
     arr.push({ round_id: h.round_id, primary_nation_id: h.primary_nation_id, secondary_nation_id: h.secondary_nation_id });
     holdingsByMember.set(h.league_member_id, arr);
@@ -137,19 +158,19 @@ export async function computeLeaderboard(
     return out;
   };
 
-  const nationBonusByUser = sumByUser(bonusResult.data, "points");
-  const progressionByUser = sumByUser(progressionResult.data, "points");
-  const penaltyByUser = sumByUser(penaltyResult.data, "amount");
+  const nationBonusByUser = sumByUser(bonusRows, "points");
+  const progressionByUser = sumByUser(progressionRows, "points");
+  const penaltyByUser = sumByUser(penaltyRows, "amount");
 
   // Live checkpoint points are keyed directly by user_id (not league_member_id)
   const liveCheckpointByUser = new Map<string, number>();
-  for (const r of (liveCheckpointResult.data ?? []) as { user_id: string; points: number }[]) {
+  for (const r of liveRows) {
     liveCheckpointByUser.set(r.user_id, (liveCheckpointByUser.get(r.user_id) ?? 0) + (r.points ?? 0));
   }
 
   const predictionPointsByUser = new Map<string, number>();
   const finishedPredCountByUser = new Map<string, number>();
-  for (const p of (finishedPredsResult.data ?? []) as { user_id: string; points: number | null }[]) {
+  for (const p of predictionRows) {
     const uid = p.user_id;
     predictionPointsByUser.set(uid, (predictionPointsByUser.get(uid) ?? 0) + (p.points ?? 0));
     finishedPredCountByUser.set(uid, (finishedPredCountByUser.get(uid) ?? 0) + 1);
