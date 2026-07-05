@@ -26,8 +26,10 @@ export interface CheckpointRecord {
 export interface PredictionRecord {
   id: string;
   match_id: number;
-  predicted_home_score: number;
-  predicted_away_score: number;
+  // null when the user made only in-play checkpoint picks and never a full-time
+  // (main) prediction for the match — the card renders "Not predicted".
+  predicted_home_score: number | null;
+  predicted_away_score: number | null;
   points: number | null;
   nation_bonus: number | null;
   checkpoints?: CheckpointRecord[];
@@ -104,7 +106,10 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
   const [summaries, setSummaries] = useState<Record<number, MatchSummary>>({});
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  const finishedPreds = predictions.filter(p => p.match.status === "finished");
+  // "made" / correct / exact stats count full-time predictions only — checkpoint-
+  // only entries are shown as cards but aren't main predictions.
+  const mainPreds = predictions.filter(p => p.predicted_home_score !== null);
+  const finishedPreds = mainPreds.filter(p => p.match.status === "finished");
   const correctCount = finishedPreds.filter(p => (p.points ?? 0) >= 1).length;
   const exactCount = finishedPreds.filter(p => (p.points ?? 0) >= 3).length;
 
@@ -228,10 +233,10 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
               +{nationBonus}n
             </span>
           )}
-          {predictions.length > 0 && (
+          {mainPreds.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
               <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n5)" }}>
-                {predictions.length} made
+                {mainPreds.length} made
               </span>
               {finishedPreds.length > 0 && (
                 <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n6)" }}>
@@ -390,7 +395,7 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                    <PointsBadge points={isFinished ? (p.points ?? 0) : null} />
+                    {p.predicted_home_score !== null && <PointsBadge points={isFinished ? (p.points ?? 0) : null} />}
                     {isFinished && p.nation_bonus != null && p.nation_bonus > 0 && (
                       <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 11, color: "var(--g3)" }}>
                         +{p.nation_bonus}n
@@ -475,15 +480,28 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
                   >
                     {profileName ? `${profileName}'s pick` : "Your prediction"}
                   </div>
-                  <div
-                    style={{
-                      fontFamily: "var(--font-anton), sans-serif",
-                      fontSize: 20,
-                      color: "var(--n0)",
-                    }}
-                  >
-                    {p.predicted_home_score} – {p.predicted_away_score}
-                  </div>
+                  {p.predicted_home_score !== null ? (
+                    <div
+                      style={{
+                        fontFamily: "var(--font-anton), sans-serif",
+                        fontSize: 20,
+                        color: "var(--n0)",
+                      }}
+                    >
+                      {p.predicted_home_score} – {p.predicted_away_score}
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        fontFamily: "var(--font-inter), sans-serif",
+                        fontSize: 13,
+                        color: "var(--n6)",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      Not predicted · in-play only
+                    </div>
+                  )}
                 </div>
 
                 {isFinished && p.match.home_score != null && p.match.away_score != null && (

@@ -107,13 +107,55 @@ export default async function HistoryPage() {
     };
   });
 
+  // Knockout matches the user made checkpoint picks for but never a full-time
+  // (main) prediction. History is built from main-prediction rows, so without
+  // this those in-play-only entries silently vanish. Surface them with a null
+  // main score so the match — and its checkpoint points — still show.
+  const predictedMatchIds = new Set(predictions.map((p) => p.match_id));
+  const checkpointOnlyIds = [...checkpointsByMatch.keys()].filter((id) => !predictedMatchIds.has(id));
+
+  let checkpointOnlyRecords: PredictionRecord[] = [];
+  if (checkpointOnlyIds.length > 0) {
+    const { data: coMatches } = await supabase
+      .from("matches")
+      .select(
+        `id, kickoff_time, home_score, away_score, status, group_label,
+         home_nation:home_nation_id(name, flag_code),
+         away_nation:away_nation_id(name, flag_code)`
+      )
+      .in("id", checkpointOnlyIds);
+    checkpointOnlyRecords = (coMatches ?? []).map((m) => {
+      const matchId = m.id as number;
+      return {
+        id: `cp-${matchId}`,
+        match_id: matchId,
+        predicted_home_score: null,
+        predicted_away_score: null,
+        points: null,
+        nation_bonus: nationBonusByMatch.get(matchId) ?? null,
+        checkpoints: checkpointsByMatch.get(matchId) ?? [],
+        match: {
+          kickoff_time: m.kickoff_time as string,
+          home_score: m.home_score as number | null,
+          away_score: m.away_score as number | null,
+          status: m.status as string,
+          group_label: m.group_label as string | null,
+          home_nation: (Array.isArray(m.home_nation) ? m.home_nation[0] : m.home_nation) as NationRef,
+          away_nation: (Array.isArray(m.away_nation) ? m.away_nation[0] : m.away_nation) as NationRef,
+        },
+      };
+    });
+  }
+
+  const allRecords = [...predictions, ...checkpointOnlyRecords];
+
   const now = new Date();
 
   const isLive = (p: PredictionRecord) =>
     p.match.status !== "finished" && new Date(p.match.kickoff_time) < now;
 
-  const live = predictions.filter(isLive);
-  const finished = predictions
+  const live = allRecords.filter(isLive);
+  const finished = allRecords
     .filter((p) => p.match.status === "finished")
     .sort((a, b) => new Date(b.match.kickoff_time).getTime() - new Date(a.match.kickoff_time).getTime());
 
