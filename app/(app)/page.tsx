@@ -140,47 +140,47 @@ export default async function HomePage() {
   const isCreator = leagueData?.creator_id === user.id;
   const adminUserId = leagueData?.creator_id as string | null;
 
-  // Knockout nudges: R16 is the active round (RO16 re-draft + RO16 bracket). The
-  // RO32 bracket persists as a read-only history card.
-  const R16_ROUND_ID = "a0000000-0000-0000-0000-000000000002";
+  // Knockout nudges: QF is the active round (QF re-draft + QF bracket). The R16
+  // bracket persists as a read-only history card.
+  const QF_ROUND_ID = "a0000000-0000-0000-0000-000000000004";
 
   const { data: redraftWin } = await supabase
     .from("redraft_windows")
     .select("status, closes_at")
     .eq("league_id", leagueId)
-    .eq("round_id", R16_ROUND_ID)
+    .eq("round_id", QF_ROUND_ID)
     .maybeSingle();
   const redraftOpen =
     !!redraftWin &&
     redraftWin.status === "open" &&
     (!redraftWin.closes_at || new Date() < new Date(redraftWin.closes_at as string));
 
-  // R16 bracket nudge — the 8 ties; locks at first R16 kickoff − lead.
-  const { data: r16Matches } = await supabase
+  // QF bracket nudge — the 4 ties; locks at first QF kickoff − lead.
+  const { data: qfMatches } = await supabase
     .from("matches")
     .select("id, kickoff_time")
-    .eq("round_id", R16_ROUND_ID)
+    .eq("round_id", QF_ROUND_ID)
     .order("kickoff_time", { ascending: true });
-  const r16MatchIds = (r16Matches ?? []).map((m) => m.id as number);
-  const r16TieCount = r16MatchIds.length;
-  const { count: myBracketCount } = r16MatchIds.length > 0
-    ? await supabase.from("ro32_bracket_picks").select("id", { count: "exact", head: true }).eq("league_id", leagueId).eq("user_id", user.id).in("match_id", r16MatchIds)
+  const qfMatchIds = (qfMatches ?? []).map((m) => m.id as number);
+  const qfTieCount = qfMatchIds.length;
+  const { count: myBracketCount } = qfMatchIds.length > 0
+    ? await supabase.from("ro32_bracket_picks").select("id", { count: "exact", head: true }).eq("league_id", leagueId).eq("user_id", user.id).in("match_id", qfMatchIds)
     : { count: 0 };
-  const bracketLockAt = r16Matches && r16Matches[0]
-    ? new Date(new Date(r16Matches[0].kickoff_time as string).getTime() - BRACKET_LOCK_LEAD_MS).toISOString()
+  const bracketLockAt = qfMatches && qfMatches[0]
+    ? new Date(new Date(qfMatches[0].kickoff_time as string).getTime() - BRACKET_LOCK_LEAD_MS).toISOString()
     : null;
   const bracketLocked = bracketLockAt ? new Date() >= new Date(bracketLockAt) : true;
   const myBracketPicks = myBracketCount ?? 0;
   const bracketShow = !!bracketLockAt && (!bracketLocked || myBracketPicks > 0);
-  const bracketTitle = bracketLocked ? "🏆 RO16 bracket results" : myBracketPicks === 0 ? "🏆 Submit your RO16 bracket" : myBracketPicks < r16TieCount ? "🏆 Finish your RO16 bracket" : "🏆 RO16 bracket saved";
+  const bracketTitle = bracketLocked ? "🏆 QF bracket results" : myBracketPicks === 0 ? "🏆 Submit your QF bracket" : myBracketPicks < qfTieCount ? "🏆 Finish your QF bracket" : "🏆 QF bracket saved";
   const bracketSub = bracketLocked
-    ? "See how your RO16 picks are doing"
-    : myBracketPicks < r16TieCount
-      ? `Pick who advances in all ${r16TieCount} ties${bracketLockAt ? ` · locks ${toISTWithDay(bracketLockAt)}` : ""}`
-      : `All ${r16TieCount} picked · edit anytime before lock${bracketLockAt ? ` (${toISTWithDay(bracketLockAt)})` : ""}`;
+    ? "See how your QF picks are doing"
+    : myBracketPicks < qfTieCount
+      ? `Pick who advances in all ${qfTieCount} ties${bracketLockAt ? ` · locks ${toISTWithDay(bracketLockAt)}` : ""}`
+      : `All ${qfTieCount} picked · edit anytime before lock${bracketLockAt ? ` (${toISTWithDay(bracketLockAt)})` : ""}`;
 
-  // RO32 bracket — read-only history card, shown once the RO16 window is live.
-  const showRo32History = redraftOpen || bracketShow;
+  // R16 bracket — read-only history card, shown once the QF window is live.
+  const showR16History = redraftOpen || bracketShow;
 
   // All live matches (status=scheduled but past kickoff — scored by the edge function)
   const liveMatches: LiveMatch[] = (liveMatchesResult.data ?? []).map((raw) => ({
@@ -443,7 +443,7 @@ export default async function HomePage() {
       </div>
 
       <div style={{ padding: "16px 16px 80px", display: "flex", flexDirection: "column", gap: 14 }}>
-        {/* RO32 re-draft nudge */}
+        {/* QF re-draft nudge */}
         {redraftOpen && (
           <Link
             href="/redraft"
@@ -458,7 +458,7 @@ export default async function HomePage() {
                 🔄 Re-draft open
               </div>
               <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--g2)", marginTop: 3, lineHeight: 1.4 }}>
-                Pick your Round of 16 team{redraftWin?.closes_at ? ` · closes ${toISTWithDay(redraftWin.closes_at as string)}` : ""}
+                Pick your Quarter-final team{redraftWin?.closes_at ? ` · closes ${toISTWithDay(redraftWin.closes_at as string)}` : ""}
               </div>
             </div>
             <span style={{ color: "var(--g3)", fontSize: 22, flexShrink: 0 }}>›</span>
@@ -1236,7 +1236,27 @@ export default async function HomePage() {
             })}
           </div>
         )}
-        {showRo32History && (
+        {showR16History && (
+          <Link
+            href="/bracket?round=r16"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+              background: "var(--surf)", border: "1px solid var(--n8)", borderRadius: 14,
+              padding: "12px 14px", textDecoration: "none",
+            }}
+          >
+            <div>
+              <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "var(--n4)", letterSpacing: 0.3 }}>
+                📜 RO16 bracket
+              </div>
+              <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n6)", marginTop: 2 }}>
+                Your Round of 16 picks & results
+              </div>
+            </div>
+            <span style={{ color: "var(--n6)", fontSize: 18, flexShrink: 0 }}>›</span>
+          </Link>
+        )}
+        {showR16History && (
           <Link
             href="/bracket?round=ro32"
             style={{

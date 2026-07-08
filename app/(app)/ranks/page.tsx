@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import RanksClient from "./ranks-client";
 import { computeLeaderboard, type LeaderboardRow } from "@/lib/server/leaderboard";
-import { ROUND_ID, ROUND_IDS } from "@/lib/constants";
+import { ROUND_IDS } from "@/lib/constants";
 
 interface RankRow extends LeaderboardRow {
   primary_nation_name: string;
@@ -88,9 +88,10 @@ export default async function RanksPage() {
       leagueName={(league?.name as string) ?? "Jay's League"}
       memberCount={nonAdminMemberCount}
       leagueId={leagueId}
-      roundId={ROUND_ID}
+      roundId={ROUND_IDS.qf}
       ro32RoundId={ROUND_IDS.ro32}
       r16RoundId={ROUND_IDS.r16}
+      qfRoundId={ROUND_IDS.qf}
       myRank={myRank}
       myPoints={myRankRow?.total_points ?? 0}
       myPrimaryNationName={myPrimaryNationName}

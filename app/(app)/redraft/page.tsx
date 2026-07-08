@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import RedraftClient from "./redraft-client";
+import RedraftClient, { type RedraftRound } from "./redraft-client";
 import { ROUND_IDS, RO32_PRIMARY_POOL_SIZE } from "@/lib/constants";
 import { holdingForRound, type HoldingRow } from "@/lib/server/holdings";
 
@@ -30,10 +30,11 @@ export default async function RedraftPage() {
     .eq("league_id", leagueId)
     .eq("status", "open");
   const isOpen = (w: { closes_at: string | null }) => !w.closes_at || new Date() < new Date(w.closes_at);
-  const r16Win = (windows ?? []).find((w) => w.round_id === ROUND_IDS.r16 && isOpen(w));
-  const ro32Win = (windows ?? []).find((w) => w.round_id === ROUND_IDS.ro32 && isOpen(w));
-  const activeRound: "r16" | "ro32" = r16Win ? "r16" : "ro32";
-  const win = r16Win ?? ro32Win ?? null;
+  // Prefer the latest round whose window is open.
+  const ROUND_PRIORITY: RedraftRound[] = ["final", "sf", "qf", "r16", "ro32"];
+  const active = ROUND_PRIORITY.map((r) => ({ r, w: (windows ?? []).find((w) => w.round_id === ROUND_IDS[r] && isOpen(w)) })).find((x) => x.w);
+  const activeRound: RedraftRound = active?.r ?? "ro32";
+  const win = active?.w ?? null;
   const windowOpen = !!win;
 
   // Survivor pool, ordered by FIFA ranking.
@@ -47,21 +48,21 @@ export default async function RedraftPage() {
   const originalPrimary = membership.primary_nation_id as number | null;
   const originalSecondary = membership.secondary_nation_id as number | null;
 
-  // --- R16: single team, any survivor, −5 to switch to a team you didn't hold ---
-  if (activeRound === "r16") {
+  // --- R16 onward: single team, any survivor, escalating swap penalty ---
+  if (activeRound !== "ro32") {
     const { data: holdings } = await supabase
       .from("member_round_teams")
       .select("round_id, primary_nation_id, secondary_nation_id")
       .eq("league_member_id", membership.id);
-    // Team carried into R16 = sticky holding (RO32 primary, or an explicit R16 pick).
+    // Team carried into this round = sticky holding (latest ≤ this round's primary).
     const carried = holdingForRound(
       { primary_nation_id: originalPrimary, secondary_nation_id: originalSecondary },
       (holdings ?? []) as HoldingRow[],
-      ROUND_IDS.r16
+      ROUND_IDS[activeRound]
     );
     return (
       <RedraftClient
-        round="r16"
+        round={activeRound}
         leagueId={leagueId}
         windowOpen={windowOpen}
         closesAt={(win?.closes_at as string | null) ?? null}

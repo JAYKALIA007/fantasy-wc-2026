@@ -7,11 +7,13 @@ import { toISTWithDay } from "@/lib/utils/date";
 
 type Nation = { id: number; name: string; fifa_ranking: number | null };
 
-const PRIMARY_SWAP_COST = 3;
-const R16_SWAP_COST = 10;
+const SWAP_COST: Record<string, number> = { ro32: 3, r16: 10, qf: 15, sf: 20, final: 25 };
+const ROUND_LABEL: Record<string, string> = { ro32: "Round of 32", r16: "Round of 16", qf: "Quarter-finals", sf: "Semi-finals", final: "Final" };
+
+export type RedraftRound = "ro32" | "r16" | "qf" | "sf" | "final";
 
 type Props = {
-  round: "ro32" | "r16";
+  round: RedraftRound;
   leagueId: string;
   windowOpen: boolean;
   closesAt: string | null;
@@ -36,10 +38,10 @@ export default function RedraftClient({
   secondaryInvalidated,
 }: Props) {
   const router = useRouter();
-  const isR16 = round === "r16";
-  const roundLabel = isR16 ? "Round of 16" : "Round of 32";
-  const swapCost = isR16 ? R16_SWAP_COST : PRIMARY_SWAP_COST;
-  const maxStep = isR16 ? 2 : 3;
+  const isSingleTeam = round !== "ro32";
+  const roundLabel = ROUND_LABEL[round];
+  const swapCost = SWAP_COST[round];
+  const maxStep = isSingleTeam ? 2 : 3;
 
   const [step, setStep] = useState(1);
   const [primaryId, setPrimaryId] = useState<number | null>(currentPrimary);
@@ -54,7 +56,7 @@ export default function RedraftClient({
 
   async function submit() {
     if (primaryId == null) return;
-    if (!isR16 && secondaryId == null) return;
+    if (!isSingleTeam && secondaryId == null) return;
     setSaving(true);
     setError(null);
     const res = await fetch("/api/redraft", {
@@ -64,7 +66,7 @@ export default function RedraftClient({
         league_id: leagueId,
         round,
         primary_nation_id: primaryId,
-        secondary_nation_id: isR16 ? null : secondaryId,
+        secondary_nation_id: isSingleTeam ? null : secondaryId,
       }),
     });
     if (!res.ok) {
@@ -92,7 +94,7 @@ export default function RedraftClient({
   }
 
   const closeLabel = closesAt ? toISTWithDay(closesAt) : null;
-  const nextDisabled = step === 1 ? primaryId == null : !isR16 && secondaryId == null;
+  const nextDisabled = step === 1 ? primaryId == null : !isSingleTeam && secondaryId == null;
 
   return (
     <div style={wrap}>
@@ -108,9 +110,9 @@ export default function RedraftClient({
 
       {step === 1 && (
         <Picker
-          title={isR16 ? "Your team" : "Your primary"}
+          title={isSingleTeam ? "Your team" : "Your primary"}
           subtitle={
-            isR16 ? (
+            isSingleTeam ? (
               <>Pick any surviving team. Keeping is free — switching to a team you didn&apos;t hold costs <strong style={{ color: "var(--r2)" }}>−{swapCost} pts</strong>.</>
             ) : (
               <>Pick from the 12 highest-ranked survivors. Keeping is free — any swap costs <strong style={{ color: "var(--r2)" }}>−{swapCost} pts</strong>.</>
@@ -124,7 +126,7 @@ export default function RedraftClient({
         />
       )}
 
-      {step === 2 && !isR16 && (
+      {step === 2 && !isSingleTeam && (
         <>
           {secondaryInvalidated && (
             <div style={{ background: "var(--gbg)", border: "1px solid var(--g3)", borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
@@ -148,8 +150,8 @@ export default function RedraftClient({
       {step === maxStep && (
         <div style={{ ...card, padding: "18px 16px" }}>
           <h1 style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 26, color: "var(--n0)", margin: "0 0 16px" }}>Confirm re-draft</h1>
-          <SummaryRow label={isR16 ? "Team" : "Primary"} from={nameOf(originalPrimary, primaryPool)} to={nameOf(primaryId, primaryPool)} cost={primarySwapped ? swapCost : 0} />
-          {!isR16 && <SummaryRow label="Wildcard" from={nameOf(presetSecondary, secondaryPool)} to={nameOf(secondaryId, secondaryPool)} cost={0} />}
+          <SummaryRow label={isSingleTeam ? "Team" : "Primary"} from={nameOf(originalPrimary, primaryPool)} to={nameOf(primaryId, primaryPool)} cost={primarySwapped ? swapCost : 0} />
+          {!isSingleTeam && <SummaryRow label="Wildcard" from={nameOf(presetSecondary, secondaryPool)} to={nameOf(secondaryId, secondaryPool)} cost={0} />}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--n8)", marginTop: 12, paddingTop: 14 }}>
             <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 14, color: "var(--n0)", textTransform: "uppercase", letterSpacing: 0.8 }}>Total cost</span>
             <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 22, color: totalCost > 0 ? "var(--r2)" : "var(--g2)" }}>{totalCost > 0 ? `−${totalCost} pts` : "Free"}</span>
@@ -176,12 +178,12 @@ export default function RedraftClient({
               disabled={nextDisabled}
               style={{ ...btnPrimary, opacity: nextDisabled ? 0.5 : 1 }}
             >
-              {isR16 ? "Review →" : step === 1 ? "Next: wildcard →" : "Review →"}
+              {isSingleTeam ? "Review →" : step === 1 ? "Next: wildcard →" : "Review →"}
             </button>
           )}
           {step === maxStep && (
-            <button onClick={submit} disabled={saving || primaryId == null || (!isR16 && secondaryId == null)} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}>
-              {saving ? "Saving…" : totalCost > 0 ? `Confirm · −${totalCost}` : isR16 ? "Lock my team" : "Lock my teams"}
+            <button onClick={submit} disabled={saving || primaryId == null || (!isSingleTeam && secondaryId == null)} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}>
+              {saving ? "Saving…" : totalCost > 0 ? `Confirm · −${totalCost}` : isSingleTeam ? "Lock my team" : "Lock my teams"}
             </button>
           )}
         </div>
