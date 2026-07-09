@@ -127,4 +127,23 @@ describe("mapEspnCompetition", () => {
   it("missing competitors → null", () => {
     expect(mapEspnCompetition({ competitors: [], status: { type: { state: "in" } } })).toBeNull();
   });
+
+  it("swapped=true maps ESPN home/away back to OUR orientation", () => {
+    // ESPN lists France home 2, Morocco away 1; we seeded Morocco home. swapped
+    // must flip the scores so our home (Morocco) reads 1 and away (France) 2.
+    const espn = comp({ state: "post", completed: true, description: "Full Time", period: 2, homeScore: 2, awayScore: 1 });
+    const r = mapEspnCompetition(espn, true)!;
+    expect(r.home).toBe(1);
+    expect(r.away).toBe(2);
+    // Non-score fields are orientation-symmetric and unchanged.
+    expect(r.stage).toBe("complete");
+    expect(r.decidedInRegulation).toBe(true);
+  });
+
+  it("swapped=true flips the shootout tally too", () => {
+    const espn = comp({ state: "post", completed: true, description: "Full Time", period: 5, homeScore: 1, awayScore: 1, homeShootout: 4, awayShootout: 3 });
+    const r = mapEspnCompetition(espn, true)!;
+    expect(r.shootoutHome).toBe(3);
+    expect(r.shootoutAway).toBe(4);
+  });
 });

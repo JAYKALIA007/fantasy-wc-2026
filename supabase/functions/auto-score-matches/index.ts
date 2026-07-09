@@ -116,7 +116,11 @@ function matchCompetitor(c: EspnCompetitor, target: string): boolean {
 
 // Returns the ESPN competition (with status + competitors) for the given pairing,
 // regardless of completion — needed to read in-play phase, not just final score.
-function findCompetition(events: EspnEvent[], espnHome: string, espnAway: string) {
+// `swapped` is true when ESPN lists the fixture with home/away reversed from our
+// seed (knockout "home" is nominal, so sources disagree). Callers must map ESPN's
+// home/away scores back to OUR orientation when swapped — otherwise the match is
+// simply not found and never scores.
+function findCompetition(events: EspnEvent[], espnHome: string, espnAway: string): { competition: EspnEvent["competitions"][number]; swapped: boolean } | null {
   for (const event of events) {
     for (const competition of event.competitions ?? []) {
       const competitors = competition.competitors ?? [];
@@ -124,7 +128,10 @@ function findCompetition(events: EspnEvent[], espnHome: string, espnAway: string
       const away = competitors.find((c) => c.homeAway === "away");
       if (!home || !away) continue;
       if (matchCompetitor(home, espnHome) && matchCompetitor(away, espnAway)) {
-        return competition;
+        return { competition, swapped: false };
+      }
+      if (matchCompetitor(home, espnAway) && matchCompetitor(away, espnHome)) {
+        return { competition, swapped: true };
       }
     }
   }
@@ -175,7 +182,7 @@ function isExactStatus(t: { detail?: string; shortDetail?: string }, token: stri
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapEspnCompetition(comp: any): DetectedState | null {
+function mapEspnCompetition(comp: any, swapped = false): DetectedState | null {
   const competitors = comp.competitors ?? [];
   const home = competitors.find((c: EspnCompetitor) => c.homeAway === "home");
   const away = competitors.find((c: EspnCompetitor) => c.homeAway === "away");
@@ -230,7 +237,10 @@ function mapEspnCompetition(comp: any): DetectedState | null {
     }
   }
 
-  return { stage, home: h, away: a, shootoutHome, shootoutAway, decidedInRegulation };
+  // ESPN's home/away may be reversed from ours — map scores back to OUR orientation.
+  return swapped
+    ? { stage, home: a, away: h, shootoutHome: shootoutAway, shootoutAway: shootoutHome, decidedInRegulation }
+    : { stage, home: h, away: a, shootoutHome, shootoutAway, decidedInRegulation };
 }
 
 function computePhaseTransitions(stored: StoredPhase[], detected: DetectedState): PhaseAction[] {
@@ -365,10 +375,13 @@ serve(async (_req: Request) => {
     let score: { home: number; away: number; shootoutHome: number | null; shootoutAway: number | null } | null = null;
     for (const dateStr of datesToTry(match.kickoff_time)) {
       const events = await getEvents(dateStr);
-      const comp = findCompetition(events, espnHome, espnAway);
-      if (comp && comp.status?.type?.completed) {
-        const h = comp.competitors.find((c) => c.homeAway === "home");
-        const a = comp.competitors.find((c) => c.homeAway === "away");
+      const found = findCompetition(events, espnHome, espnAway);
+      if (found && found.competition.status?.type?.completed) {
+        const espnH = found.competition.competitors.find((c) => c.homeAway === "home");
+        const espnA = found.competition.competitors.find((c) => c.homeAway === "away");
+        // Map ESPN's home/away back to OUR orientation when the fixture is reversed.
+        const h = found.swapped ? espnA : espnH;
+        const a = found.swapped ? espnH : espnA;
         if (h && a) {
           const hs = parseInt(h.score, 10);
           const as = parseInt(a.score, 10);
@@ -536,16 +549,15 @@ serve(async (_req: Request) => {
 
     const espnHome = toEspnName(homeNation.name).toLowerCase();
     const espnAway = toEspnName(awayNation.name).toLowerCase();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let comp: any = null;
+    let found: { competition: EspnEvent["competitions"][number]; swapped: boolean } | null = null;
     for (const dateStr of datesToTry(match.kickoff_time)) {
       const events = await getEvents(dateStr);
-      comp = findCompetition(events, espnHome, espnAway);
-      if (comp) break;
+      found = findCompetition(events, espnHome, espnAway);
+      if (found) break;
     }
-    if (!comp) { checkpointPass.push({ match_id: match.id, result: "no espn event" }); continue; }
+    if (!found) { checkpointPass.push({ match_id: match.id, result: "no espn event" }); continue; }
 
-    const detected = mapEspnCompetition(comp);
+    const detected = mapEspnCompetition(found.competition, found.swapped);
     if (!detected) { checkpointPass.push({ match_id: match.id, result: "unmappable" }); continue; }
 
     const { data: storedRows } = await supabase

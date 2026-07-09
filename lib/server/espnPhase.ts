@@ -78,7 +78,10 @@ function isExactStatus(t: EspnStatusType | undefined, token: string): boolean {
 }
 
 // Returns null if the competition payload is unusable (missing competitors).
-export function mapEspnCompetition(comp: EspnCompetitionLike): DetectedState | null {
+// `swapped` is set when ESPN lists the fixture with home/away reversed from our
+// seed; the scores are then mapped back to OUR orientation. Stage detection is
+// orientation-symmetric, so only the score fields flip.
+export function mapEspnCompetition(comp: EspnCompetitionLike, swapped = false): DetectedState | null {
   const competitors = comp.competitors ?? [];
   const home = competitors.find((c) => c.homeAway === "home");
   const away = competitors.find((c) => c.homeAway === "away");
@@ -154,10 +157,10 @@ export function mapEspnCompetition(comp: EspnCompetitionLike): DetectedState | n
 
   return {
     stage,
-    home: h,
-    away: a,
-    shootoutHome,
-    shootoutAway,
+    home: swapped ? a : h,
+    away: swapped ? h : a,
+    shootoutHome: swapped ? shootoutAway : shootoutHome,
+    shootoutAway: swapped ? shootoutHome : shootoutAway,
     period: period || 0,
     isComplete: stage === "complete",
     decidedInRegulation,
