@@ -90,6 +90,27 @@ export default async function BracketPage({ searchParams }: { searchParams: Prom
 
   const resolvedCount = advancers.size;
 
+  // Reveal everyone's picks per tie once the bracket locks — mirrors the live-
+  // checkpoint rule (picks hidden from others until the window closes). Before
+  // lock, tiePicks stays empty so only the user's own selections are visible.
+  const tiePicks: Record<number, { name: string; isMe: boolean; advancer_nation_id: number }[]> = {};
+  if (locked) {
+    const memberIdSet = new Set(userIds);
+    for (const p of allPicks ?? []) {
+      const uid = p.user_id as string;
+      if (!memberIdSet.has(uid)) continue; // drops admin
+      const mid = p.match_id as number;
+      (tiePicks[mid] ??= []).push({
+        name: nameByUser.get(uid) ?? "—",
+        isMe: uid === user.id,
+        advancer_nation_id: p.advancer_nation_id as number,
+      });
+    }
+    for (const arr of Object.values(tiePicks)) {
+      arr.sort((a, b) => (a.isMe === b.isMe ? a.name.localeCompare(b.name) : a.isMe ? -1 : 1));
+    }
+  }
+
   return (
     <BracketClient
       leagueId={leagueId}
@@ -101,6 +122,7 @@ export default async function BracketPage({ searchParams }: { searchParams: Prom
       standings={standings}
       resolvedCount={resolvedCount}
       advancers={Object.fromEntries(advancers)}
+      tiePicks={tiePicks}
     />
   );
 }

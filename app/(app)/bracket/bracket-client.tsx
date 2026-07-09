@@ -19,9 +19,10 @@ type Props = {
   standings: Standing[];
   resolvedCount: number;
   advancers: Record<number, number>;
+  tiePicks: Record<number, { name: string; isMe: boolean; advancer_nation_id: number }[]>;
 };
 
-export default function BracketClient({ roundLabel, matches, myPicks, locked, lockAt, standings, resolvedCount, advancers }: Props) {
+export default function BracketClient({ roundLabel, matches, myPicks, locked, lockAt, standings, resolvedCount, advancers, tiePicks }: Props) {
   const router = useRouter();
   const [picks, setPicks] = useState<Record<number, number>>(myPicks);
   const [saving, setSaving] = useState(false);
@@ -71,7 +72,7 @@ export default function BracketClient({ roundLabel, matches, myPicks, locked, lo
     <>
       {locked && (
         <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 13, color: "var(--n0)", textTransform: "uppercase", letterSpacing: 0.8, margin: "20px 2px 10px" }}>
-          Your picks
+          Everyone&apos;s picks
         </div>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -110,6 +111,28 @@ export default function BracketClient({ roundLabel, matches, myPicks, locked, lo
                   );
                 })}
               </div>
+              {locked && tiePicks[m.id] && tiePicks[m.id].length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--n9)" }}>
+                  {tiePicks[m.id].map((tp, idx) => {
+                    const pickedTeam = tp.advancer_nation_id === m.home.id ? m.home : m.away;
+                    const correct = resolved && advancer === tp.advancer_nation_id;
+                    const wrong = resolved && advancer !== tp.advancer_nation_id;
+                    return (
+                      <span
+                        key={idx}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 7px", borderRadius: 7,
+                          background: correct ? "var(--gbg)" : wrong ? "#fdf2f2" : "var(--n9)",
+                          fontFamily: "var(--font-inter), sans-serif", fontSize: 11,
+                        }}
+                      >
+                        <span style={{ fontSize: 13, lineHeight: 1 }}>{FLAG_EMOJI[pickedTeam.name] ?? "🏳"}</span>
+                        <span style={{ fontWeight: tp.isMe ? 700 : 500, color: tp.isMe ? "var(--g2)" : "var(--n3)" }}>{tp.isMe ? "You" : tp.name}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
@@ -121,7 +144,9 @@ export default function BracketClient({ roundLabel, matches, myPicks, locked, lo
     <div style={{ maxWidth: 480, margin: "0 auto", padding: "16px 14px 90px", minHeight: "100%", background: "var(--bg)" }}>
       <h1 style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 30, color: "var(--n0)", margin: "0 0 4px" }}>{roundLabel} Bracket</h1>
       <p style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", margin: "0 0 6px", lineHeight: 1.5 }}>
-        Pick who advances in each of the {matches.length} ties. {locked ? "Bracket is locked." : "Lock"}{!locked && lockAt ? ` at ${toISTWithDay(lockAt)}.` : ""}
+        Pick who advances in each of the {matches.length} ties. {locked
+          ? "Bracket is locked — everyone's picks are revealed below."
+          : `Your picks stay hidden from others until lock${lockAt ? ` at ${toISTWithDay(lockAt)}` : ""}.`}
       </p>
       {!locked && (
         <p style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 12, color: pickedCount === matches.length ? "var(--g2)" : "var(--n5)", margin: "0 0 14px" }}>
