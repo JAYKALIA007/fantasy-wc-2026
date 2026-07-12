@@ -1236,9 +1236,16 @@ export default async function HomePage() {
             })}
           </div>
         )}
-        {showHistory && (
+        {/* Every completed round's bracket, newest first — nothing rolls off. Add
+            the newly-finished round to the front here at each rollout. */}
+        {showHistory && ([
+          { round: "qf", label: "QF bracket", sub: "Your Quarter-final picks & results" },
+          { round: "r16", label: "RO16 bracket", sub: "Your Round of 16 picks & results" },
+          { round: "ro32", label: "RO32 bracket", sub: "Your Round of 32 picks & results" },
+        ] as const).map((h) => (
           <Link
-            href="/bracket?round=qf"
+            key={h.round}
+            href={`/bracket?round=${h.round}`}
             style={{
               display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
               background: "var(--surf)", border: "1px solid var(--n8)", borderRadius: 14,
@@ -1247,35 +1254,15 @@ export default async function HomePage() {
           >
             <div>
               <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "var(--n4)", letterSpacing: 0.3 }}>
-                📜 QF bracket
+                📜 {h.label}
               </div>
               <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n6)", marginTop: 2 }}>
-                Your Quarter-final picks & results
+                {h.sub}
               </div>
             </div>
             <span style={{ color: "var(--n6)", fontSize: 18, flexShrink: 0 }}>›</span>
           </Link>
-        )}
-        {showHistory && (
-          <Link
-            href="/bracket?round=r16"
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-              background: "var(--surf)", border: "1px solid var(--n8)", borderRadius: 14,
-              padding: "12px 14px", textDecoration: "none",
-            }}
-          >
-            <div>
-              <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "var(--n4)", letterSpacing: 0.3 }}>
-                📜 RO16 bracket
-              </div>
-              <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--n6)", marginTop: 2 }}>
-                Your Round of 16 picks & results
-              </div>
-            </div>
-            <span style={{ color: "var(--n6)", fontSize: 18, flexShrink: 0 }}>›</span>
-          </Link>
-        )}
+        ))}
       </div>
     </div>
   );
