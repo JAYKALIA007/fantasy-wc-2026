@@ -17,18 +17,20 @@ interface Props {
   ro32RoundId: string;
   r16RoundId: string;
   qfRoundId: string;
+  sfRoundId: string;
   myRank: number | null;
   myPoints: number;
   myPrimaryNationName: string;
   leaderPoints: number;
 }
 
-type LeaderboardView = "overall" | "ro32" | "r16" | "qf";
+type LeaderboardView = "overall" | "ro32" | "r16" | "qf" | "sf";
 
 const roundLabels: Record<string, string> = {
   "a0000000-0000-0000-0000-000000000001": "Group Stage",
   "a0000000-0000-0000-0000-000000000002": "R16",
   "a0000000-0000-0000-0000-000000000004": "QF",
+  "a0000000-0000-0000-0000-000000000005": "SF",
 };
 
 function RankList({
@@ -185,6 +187,7 @@ export default function RanksClient({
   ro32RoundId,
   r16RoundId,
   qfRoundId,
+  sfRoundId,
   myRank,
   myPoints,
   myPrimaryNationName,
@@ -195,8 +198,8 @@ export default function RanksClient({
 
   const fetchLeaderboard = useCallback(async (v: LeaderboardView) => {
     try {
-      // overall → cumulative; ro32/r16/qf → all components scoped to that round.
-      const roundParam = v === "ro32" ? ro32RoundId : v === "r16" ? r16RoundId : v === "qf" ? qfRoundId : null;
+      // overall → cumulative; ro32/r16/qf/sf → all components scoped to that round.
+      const roundParam = v === "ro32" ? ro32RoundId : v === "r16" ? r16RoundId : v === "qf" ? qfRoundId : v === "sf" ? sfRoundId : null;
       const url = roundParam ? `/api/leaderboard?round_id=${roundParam}` : `/api/leaderboard`;
       const res = await fetch(url);
       if (!res.ok) return;
@@ -205,7 +208,7 @@ export default function RanksClient({
     } catch {
       // Keep showing last known rows on transient failures.
     }
-  }, [ro32RoundId, r16RoundId, qfRoundId]);
+  }, [ro32RoundId, r16RoundId, qfRoundId, sfRoundId]);
 
   const switchView = useCallback((v: LeaderboardView) => {
     setView(v);
@@ -305,6 +308,7 @@ export default function RanksClient({
             { key: "ro32" as const, label: "RO32" },
             { key: "r16" as const, label: "RO16" },
             { key: "qf" as const, label: "QF" },
+            { key: "sf" as const, label: "SF" },
           ]).map((t) => {
             const active = view === t.key;
             return (
@@ -326,7 +330,7 @@ export default function RanksClient({
 
         {view !== "overall" && (
           <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n5)", paddingLeft: 4 }}>
-            {view === "ro32" ? "RO32" : view === "r16" ? "RO16" : "QF"} round only — match points from predictions, nation bonus & live checkpoints. Excludes progression bonus & redraft penalties (clean slate at kickoff).
+            {view === "ro32" ? "RO32" : view === "r16" ? "RO16" : view === "qf" ? "QF" : "SF"} round only — match points from predictions, nation bonus & live checkpoints. Excludes progression bonus & redraft penalties (clean slate at kickoff).
           </div>
         )}
 

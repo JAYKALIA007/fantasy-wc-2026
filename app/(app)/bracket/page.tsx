@@ -12,9 +12,9 @@ export default async function BracketPage({ searchParams }: { searchParams: Prom
   if (!user) redirect("/join");
 
   const sp = await searchParams;
-  const round: "ro32" | "r16" | "qf" = sp.round === "ro32" ? "ro32" : sp.round === "r16" ? "r16" : "qf";
+  const round: "ro32" | "r16" | "qf" | "sf" = sp.round === "ro32" ? "ro32" : sp.round === "r16" ? "r16" : sp.round === "qf" ? "qf" : "sf";
   const roundId = ROUND_IDS[round];
-  const roundLabel = round === "ro32" ? "RO32" : round === "r16" ? "RO16" : "QF";
+  const roundLabel = round === "ro32" ? "RO32" : round === "r16" ? "RO16" : round === "qf" ? "QF" : "SF";
 
   const { data: membership } = await supabase
     .from("league_members")
