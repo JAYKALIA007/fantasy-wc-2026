@@ -9,7 +9,7 @@ import { FLAG_EMOJI } from "@/lib/utils/flags";
 import { toIST, toISTWithDay } from "@/lib/utils/date";
 import type { Nation } from "@/lib/types";
 import { computeLeaderboard } from "@/lib/server/leaderboard";
-import { BRACKET_LOCK_LEAD_MS } from "@/lib/constants";
+import { BRACKET_LOCK_LEAD_MS, ROUND_IDS } from "@/lib/constants";
 
 interface Match {
   id: number;
@@ -178,6 +178,15 @@ export default async function HomePage() {
     : myBracketPicks < sfTieCount
       ? `Pick who advances in all ${sfTieCount} ties${bracketLockAt ? ` · locks ${toISTWithDay(bracketLockAt)}` : ""}`
       : `All ${sfTieCount} picked · edit anytime before lock${bracketLockAt ? ` (${toISTWithDay(bracketLockAt)})` : ""}`;
+
+  // Goalscorer wager nudge — shown while any SF/final/bronze fixture is still
+  // open (not yet kicked off). Optional feature, so a gentle persistent chip.
+  const { data: openWagerMatches } = await supabase
+    .from("matches")
+    .select("id")
+    .in("round_id", [ROUND_IDS.sf, ROUND_IDS.final, ROUND_IDS.bronze])
+    .gt("kickoff_time", new Date().toISOString());
+  const wagerNudge = (openWagerMatches ?? []).length > 0;
 
   // QF + R16 brackets — read-only history cards, shown once the SF window is live.
   const showHistory = redraftOpen || bracketShow;
@@ -462,6 +471,26 @@ export default async function HomePage() {
               </div>
             </div>
             <span style={{ color: "var(--g3)", fontSize: 22, flexShrink: 0 }}>›</span>
+          </Link>
+        )}
+        {wagerNudge && (
+          <Link
+            href="/predict"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+              background: "var(--surf)", border: "1.5px solid var(--gold)", borderRadius: 16,
+              padding: "16px", textDecoration: "none",
+            }}
+          >
+            <div>
+              <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 15, color: "var(--n0)", letterSpacing: 0.3 }}>
+                🎯 Goalscorer wager
+              </div>
+              <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--n5)", marginTop: 3, lineHeight: 1.4 }}>
+                Back who scores · stake 10 → win 15 · optional
+              </div>
+            </div>
+            <span style={{ color: "var(--gold)", fontSize: 22, flexShrink: 0 }}>›</span>
           </Link>
         )}
         {bracketShow && (

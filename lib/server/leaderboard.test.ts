@@ -97,6 +97,33 @@ describe("computeLeaderboard", () => {
     expect(u2.total_points).toBe(5);
   });
 
+  it("adds goalscorer wager net: won +5, lost/pending-locked −10, pending-pre-lock 0", async () => {
+    const past = "2020-01-01T00:00:00Z"; // kicked off → committed
+    const future = "2999-01-01T00:00:00Z"; // not locked → refundable, no effect
+    const supabase = mockSupabase({
+      league_members: [
+        { id: "m1", user_id: "u1", profile_name: "Alice", primary_nation_id: 1, joined_at: "2026-06-14T00:00:00Z" },
+      ],
+      predictions: [{ user_id: "u1", points: 10 }],
+      nation_bonus_points: [],
+      progression_bonus_points: [],
+      swap_penalties: [],
+      goalscorer_wagers: [
+        { user_id: "u1", status: "won", stake: 10, payout: 15, matches: { kickoff_time: past } }, // +5
+        { user_id: "u1", status: "lost", stake: 10, payout: 15, matches: { kickoff_time: past } }, // -10
+        { user_id: "u1", status: "pending", stake: 10, payout: 15, matches: { kickoff_time: past } }, // -10 (at risk)
+        { user_id: "u1", status: "pending", stake: 10, payout: 15, matches: { kickoff_time: future } }, // 0 (refundable)
+      ],
+    });
+
+    const rows = await computeLeaderboard(supabase, "league-1", null, null);
+    const u1 = rows.find((r) => r.user_id === "u1")!;
+    // +5 −10 −10 +0 = −15
+    expect(u1.wager_points).toBe(-15);
+    // base predictions 10 + wager −15 = −5
+    expect(u1.total_points).toBe(-5);
+  });
+
   it("breaks ties on points by fewer finished predictions, then join date", async () => {
     const supabase = mockSupabase({
       league_members: [

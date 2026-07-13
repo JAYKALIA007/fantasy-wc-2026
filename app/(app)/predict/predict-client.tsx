@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { toISTTime, getISTDateKey, getDayLabel } from "@/lib/utils/date";
 import type { Nation } from "@/lib/types";
-import type { CheckpointPhase, CheckpointPick } from "./page";
+import type { CheckpointPhase, CheckpointPick, WagerPlayer, RevealPick } from "./page";
+import GoalscorerSection from "./goalscorer-section";
 
 interface Match {
   id: number;
@@ -35,6 +36,10 @@ interface Props {
   roundLabel: string;
   checkpointPhasesByMatch: Record<number, CheckpointPhase[]>;
   checkpointPicksByMatch: Record<number, CheckpointPick[]>;
+  rostersByMatch: Record<number, { home: WagerPlayer[]; away: WagerPlayer[] }>;
+  wagersByMatch: Record<number, { player_id: number; status: string }[]>;
+  revealByMatch: Record<number, RevealPick[]>;
+  wagerAvailable: number;
 }
 
 
@@ -332,7 +337,7 @@ function CheckpointSection({
   );
 }
 
-export default function PredictClient({ matches, existingPredictions, leagueId, roundLabel, checkpointPhasesByMatch, checkpointPicksByMatch }: Props) {
+export default function PredictClient({ matches, existingPredictions, leagueId, roundLabel, checkpointPhasesByMatch, checkpointPicksByMatch, rostersByMatch, wagersByMatch, revealByMatch, wagerAvailable }: Props) {
   const initialScores = () => {
     const map: Record<number, [number, number]> = {};
     for (const m of matches) {
@@ -349,6 +354,46 @@ export default function PredictClient({ matches, existingPredictions, leagueId, 
     existingPredictions.map((p) => p.match_id)
   ));
   const [flashMap, setFlashMap] = useState<Record<number, boolean>>({});
+
+  // ── Goalscorer wager state (lifted here so the shared balance stays in sync
+  // across every eligible match card) ──
+  const [wagers, setWagers] = useState<Record<number, { player_id: number; status: string }[]>>(wagersByMatch);
+  const [available, setAvailable] = useState<number>(wagerAvailable);
+
+  // Returns null on success, or an error message string on failure.
+  const placeWager = async (matchId: number, playerId: number): Promise<string | null> => {
+    try {
+      const res = await fetch("/api/goalscorer-wager", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ match_id: matchId, player_id: playerId }),
+      });
+      const data = (await res.json()) as { error?: string; available?: number };
+      if (!res.ok) return data.error ?? "Failed to place wager";
+      setWagers((prev) => ({ ...prev, [matchId]: [...(prev[matchId] ?? []), { player_id: playerId, status: "pending" }] }));
+      setAvailable((a) => (typeof data.available === "number" ? data.available : a - 10));
+      return null;
+    } catch {
+      return "Network error. Please try again.";
+    }
+  };
+
+  const cancelWager = async (matchId: number, playerId: number): Promise<string | null> => {
+    try {
+      const res = await fetch("/api/goalscorer-wager", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ match_id: matchId, player_id: playerId }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) return data.error ?? "Failed to cancel wager";
+      setWagers((prev) => ({ ...prev, [matchId]: (prev[matchId] ?? []).filter((w) => w.player_id !== playerId) }));
+      setAvailable((a) => a + 10);
+      return null;
+    } catch {
+      return "Network error. Please try again.";
+    }
+  };
 
   const isDirty = (matchId: number) => {
     const [h, a] = scores[matchId] ?? [0, 0];
@@ -523,6 +568,21 @@ export default function PredictClient({ matches, existingPredictions, leagueId, 
                       kickoffTime={match.kickoff_time}
                       homeCode={match.home_nation.flag_code}
                       awayCode={match.away_nation.flag_code}
+                    />
+                  )}
+
+                  {rostersByMatch[match.id] && (
+                    <GoalscorerSection
+                      matchId={match.id}
+                      locked={locked}
+                      homeName={match.home_nation.name}
+                      awayName={match.away_nation.name}
+                      roster={rostersByMatch[match.id]}
+                      myWagers={wagers[match.id] ?? []}
+                      reveal={revealByMatch[match.id] ?? []}
+                      available={available}
+                      onPlace={placeWager}
+                      onCancel={cancelWager}
                     />
                   )}
 

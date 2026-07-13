@@ -10,6 +10,7 @@ export interface LeaderboardRow {
   progression_bonus: number;
   swap_penalty: number;
   live_checkpoint_points: number;
+  wager_points: number;
   primary_nation_id: number | null;
   joined_at: string;
   finished_prediction_count: number;
@@ -69,7 +70,7 @@ export async function computeLeaderboard(
   // rounds (against picks/holdings before the round kicks off), so they belong
   // to no single round's "points earned this round" total — only the cumulative
   // (roundId === null) Overall standing.
-  const [predictionRows, bonusRows, progressionRows, penaltyRows, holdingRows, liveRows] = await Promise.all([
+  const [predictionRows, bonusRows, progressionRows, penaltyRows, holdingRows, liveRows, wagerRows] = await Promise.all([
     // Predictions — scoped by the match's round.
     fetchAll<{ user_id: string; points: number | null }>(() => {
       let q = supabase
@@ -133,6 +134,24 @@ export async function computeLeaderboard(
                 .not("points", "is", null)
         )
       : emptyArr<{ user_id: string; points: number }>(),
+    // Goalscorer wagers — round-scoped by the match (like predictions). Net
+    // contribution is derived from settlement + lock state, not stored: won →
+    // payout-stake (+5), lost → -stake (-10), pending-but-kicked-off → -stake
+    // (committed, at risk), pending-pre-kickoff → 0 (still refundable).
+    fetchAll<{
+      user_id: string;
+      status: string;
+      stake: number;
+      payout: number;
+      matches: { kickoff_time: string } | { kickoff_time: string }[];
+    }>(() => {
+      let q = supabase
+        .from("goalscorer_wagers")
+        .select("user_id, status, stake, payout, matches!inner(round_id, kickoff_time)")
+        .eq("league_id", leagueId);
+      if (roundId) q = q.eq("matches.round_id", roundId);
+      return q;
+    }),
   ]);
 
   // Held primary per member: the latest re-draft holding if any, else the group
@@ -168,6 +187,19 @@ export async function computeLeaderboard(
     liveCheckpointByUser.set(r.user_id, (liveCheckpointByUser.get(r.user_id) ?? 0) + (r.points ?? 0));
   }
 
+  // Goalscorer wagers are keyed by user_id (like predictions/live checkpoints).
+  const nowMs = Date.now();
+  const wagerByUser = new Map<string, number>();
+  for (const w of wagerRows) {
+    const m = Array.isArray(w.matches) ? w.matches[0] : w.matches;
+    const kickedOff = m ? new Date(m.kickoff_time).getTime() <= nowMs : false;
+    let net = 0;
+    if (w.status === "won") net = w.payout - w.stake;
+    else if (w.status === "lost") net = -w.stake;
+    else if (kickedOff) net = -w.stake; // pending but locked = stake committed, at risk
+    wagerByUser.set(w.user_id, (wagerByUser.get(w.user_id) ?? 0) + net);
+  }
+
   const predictionPointsByUser = new Map<string, number>();
   const finishedPredCountByUser = new Map<string, number>();
   for (const p of predictionRows) {
@@ -183,6 +215,7 @@ export async function computeLeaderboard(
     const progressionBonus = progressionByUser.get(userId) ?? 0;
     const swapPenalty = penaltyByUser.get(userId) ?? 0;
     const liveCheckpointPoints = liveCheckpointByUser.get(userId) ?? 0;
+    const wagerPoints = wagerByUser.get(userId) ?? 0;
     const heldPrimary = currentHolding(
       { primary_nation_id: member.primary_nation_id ?? null, secondary_nation_id: null },
       holdingsByMember.get(member.id) ?? []
@@ -190,12 +223,13 @@ export async function computeLeaderboard(
     rows.push({
       user_id: userId,
       profile_name: member.profile_name,
-      total_points: predictionPoints + nationBonus + progressionBonus - swapPenalty + liveCheckpointPoints,
+      total_points: predictionPoints + nationBonus + progressionBonus - swapPenalty + liveCheckpointPoints + wagerPoints,
       prediction_points: predictionPoints,
       nation_bonus: nationBonus,
       progression_bonus: progressionBonus,
       swap_penalty: swapPenalty,
       live_checkpoint_points: liveCheckpointPoints,
+      wager_points: wagerPoints,
       primary_nation_id: heldPrimary,
       joined_at: member.joined_at,
       finished_prediction_count: finishedPredCountByUser.get(userId) ?? 0,

@@ -11,6 +11,33 @@ function toEspnName(name: string): string {
   return ESPN_NAME_MAP[name] ?? name;
 }
 
+// Strip diacritics + lowercase for robust scorer-name comparison. Both sides come
+// from ESPN (roster endpoint at seed time, scoreboard feed here), so this is
+// belt-and-suspenders against any cross-endpoint formatting drift.
+function normName(s: string): string {
+  return s.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().toLowerCase();
+}
+
+// Reg + ET goalscorers credited to the scorer, for settling goalscorer wagers.
+// ESPN types in-play goals as "Goal" / "Goal - Header" / "Goal - Penalty" (an
+// in-play spot-kick counts) and shootout kicks as "Penalty - Scored" (excluded).
+// Own goals ("Own Goal") are excluded — they aren't credited to the picked
+// player. Returns raw ESPN displayNames; normalize at compare time.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractScorers(comp: any): string[] {
+  const out: string[] = [];
+  for (const p of comp.details ?? []) {
+    if (!p.scoringPlay) continue;
+    const t: string = p.type?.text ?? "";
+    if (!/^goal/i.test(t)) continue; // excludes "Penalty - Scored" (shootout kicks)
+    if (/own/i.test(t)) continue; // excludes own goals
+    for (const a of p.athletesInvolved ?? []) {
+      if (a?.displayName) out.push(a.displayName as string);
+    }
+  }
+  return out;
+}
+
 // Knockout rounds get live in-play checkpoint windows. Round-agnostic: adding a
 // later round here (or just having its matches exist) activates checkpoints for it.
 const KNOCKOUT_ROUND_IDS = [
@@ -373,6 +400,7 @@ serve(async (_req: Request) => {
     const espnHome = toEspnName(homeNation.name).toLowerCase();
     const espnAway = toEspnName(awayNation.name).toLowerCase();
     let score: { home: number; away: number; shootoutHome: number | null; shootoutAway: number | null } | null = null;
+    let scorers: string[] = [];
     for (const dateStr of datesToTry(match.kickoff_time)) {
       const events = await getEvents(dateStr);
       const found = findCompetition(events, espnHome, espnAway);
@@ -387,6 +415,7 @@ serve(async (_req: Request) => {
           const as = parseInt(a.score, 10);
           if (!isNaN(hs) && !isNaN(as)) {
             score = { home: hs, away: as, shootoutHome: h.shootoutScore ?? null, shootoutAway: a.shootoutScore ?? null };
+            scorers = extractScorers(found.competition);
             break;
           }
         }
@@ -404,6 +433,25 @@ serve(async (_req: Request) => {
     if (updateErr) {
       finalPass.push({ match_id: match.id, result: `error: ${updateErr.message}` });
       continue;
+    }
+
+    // Settle goalscorer wagers for this match. Won if the picked player is in the
+    // reg/ET scorer set (exact normalized name), else lost. Idempotent — only
+    // pending rows are touched, so re-runs and already-final matches are no-ops.
+    const scorerSet = new Set(scorers.map(normName));
+    const { data: pendingWagers } = await supabase
+      .from("goalscorer_wagers")
+      .select("id, espn_name")
+      .eq("match_id", match.id)
+      .eq("status", "pending");
+    let wagersWon = 0;
+    for (const w of pendingWagers ?? []) {
+      const won = scorerSet.has(normName(w.espn_name as string));
+      if (won) wagersWon++;
+      await supabase
+        .from("goalscorer_wagers")
+        .update({ status: won ? "won" : "lost", settled_at: now.toISOString(), updated_at: now.toISOString() })
+        .eq("id", w.id);
     }
 
     // Knockout: tag the loser eliminated at this round so the bracket + progression
@@ -492,7 +540,12 @@ serve(async (_req: Request) => {
       }
       if (bonusRecords.length > 0) await supabase.from("nation_bonus_points").insert(bonusRecords);
     }
-    finalPass.push({ match_id: match.id, result: `scored ${score.home}-${score.away}` });
+    finalPass.push({
+      match_id: match.id,
+      result: `scored ${score.home}-${score.away}`,
+      wagers_settled: (pendingWagers ?? []).length,
+      wagers_won: wagersWon,
+    });
   }
 
   // ── PASS 1.5: open h1 + h2 UPFRONT for all upcoming knockout matches ────────
