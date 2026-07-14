@@ -91,6 +91,7 @@ export default async function PlayerPredictionsPage({
         progressionBonus: targetRow.progression_bonus,
         liveCheckpoint: targetRow.live_checkpoint_points,
         swapPenalty: targetRow.swap_penalty,
+        wager: targetRow.wager_points,
         total: targetRow.total_points,
       }
     : undefined;

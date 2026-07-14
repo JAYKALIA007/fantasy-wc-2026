@@ -22,7 +22,7 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
   const leagueId = membership.league_id as string;
   const matchIdNum = parseInt(matchId, 10);
 
-  const [matchResult, predictionsResult, membersResult, leagueResult, cpPhasesResult, cpPicksResult] = await Promise.all([
+  const [matchResult, predictionsResult, membersResult, leagueResult, cpPhasesResult, cpPicksResult, wagersResult] = await Promise.all([
     supabase
       .from("matches")
       .select("id, kickoff_time, status, home_score, away_score, group_label, home_nation:home_nation_id(name, flag_code), away_nation:away_nation_id(name, flag_code)")
@@ -53,6 +53,14 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
     supabase
       .from("live_checkpoint_predictions")
       .select("user_id, phase, predicted_home, predicted_away, points")
+      .eq("match_id", matchIdNum)
+      .eq("league_id", leagueId),
+    // Goalscorer wagers on this match. The page is post-kickoff only (redirect
+    // above), so revealing everyone's picks here honours the same lock-then-
+    // reveal rule as score predictions and checkpoints.
+    supabase
+      .from("goalscorer_wagers")
+      .select("user_id, espn_name, status")
       .eq("match_id", matchIdNum)
       .eq("league_id", leagueId),
   ]);
@@ -118,14 +126,24 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
     cpByUser.get(pk.user_id)!.set(pk.phase, pk);
   }
 
-  // Only list players who actually engaged with this match — a main prediction
-  // or at least one (revealed) checkpoint pick. Non-participants are hidden.
+  // userId → their goalscorer wagers on this match.
+  type WagerPick = { name: string; status: string };
+  const wagersByUser = new Map<string, WagerPick[]>();
+  for (const w of (wagersResult.data ?? []) as { user_id: string; espn_name: string; status: string }[]) {
+    if (w.user_id === adminUserId) continue;
+    const arr = wagersByUser.get(w.user_id) ?? [];
+    arr.push({ name: w.espn_name, status: w.status });
+    wagersByUser.set(w.user_id, arr);
+  }
+
+  // Only list players who actually engaged with this match — a main prediction,
+  // a (revealed) checkpoint pick, or a goalscorer wager. Non-participants hidden.
   const rows = Array.from(memberMap.entries()).map(([userId, name]) => ({
     userId,
     name,
     pred: predMap.get(userId) ?? null,
     isMe: userId === user.id,
-  })).filter((r) => r.pred !== null || cpByUser.has(r.userId)).sort((a, b) => {
+  })).filter((r) => r.pred !== null || cpByUser.has(r.userId) || wagersByUser.has(r.userId)).sort((a, b) => {
     // Me first, then by points desc, then alpha
     if (a.isMe) return -1;
     if (b.isMe) return 1;
@@ -281,6 +299,30 @@ export default async function MatchPredictionsPage({ params }: { params: Promise
                         {pick ? `${pick.predicted_home}–${pick.predicted_away}` : "—"}
                       </span>
                       {correct && <span style={{ color: "var(--g3)", fontWeight: 800 }}>+{pick!.points}</span>}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Goalscorer wager picks — revealed post-kickoff, like the rest. */}
+            {(wagersByUser.get(row.userId)?.length ?? 0) > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, borderTop: "1px solid rgba(14,23,38,0.06)", paddingTop: 8 }}>
+                {wagersByUser.get(row.userId)!.map((w, i) => {
+                  const won = w.status === "won";
+                  const lost = w.status === "lost";
+                  return (
+                    <span key={i} style={{
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                      padding: "3px 8px", borderRadius: 7,
+                      background: won ? "rgba(0,184,92,0.15)" : lost ? "rgba(226,59,72,0.1)" : "rgba(240,192,64,0.12)",
+                      fontFamily: "var(--font-inter), sans-serif", fontSize: 11,
+                    }}>
+                      <span>🎯</span>
+                      <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, color: "var(--n0)" }}>{w.name}</span>
+                      <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, color: won ? "var(--g3)" : lost ? "var(--r3)" : "var(--n5)" }}>
+                        {won ? "+15" : lost ? "−10" : "live"}
+                      </span>
                     </span>
                   );
                 })}

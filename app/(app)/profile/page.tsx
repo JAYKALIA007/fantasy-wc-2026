@@ -69,6 +69,7 @@ export default async function ProfilePage() {
   const progressionBonus = myRow?.progression_bonus ?? 0;
   const swapPenalty = myRow?.swap_penalty ?? 0;
   const liveCheckpointPoints = myRow?.live_checkpoint_points ?? 0;
+  const wagerPoints = myRow?.wager_points ?? 0;
   const totalPoints = myRow?.total_points ?? 0;
 
   // Prediction stats — only kicked-off matches
@@ -131,6 +132,7 @@ export default async function ProfilePage() {
             { label: "Nation bonus", value: nationBonus },
             { label: "Progression bonus", value: progressionBonus },
             ...(liveCheckpointPoints > 0 ? [{ label: "Live predictions", value: liveCheckpointPoints }] : []),
+            ...(wagerPoints !== 0 ? [{ label: "🎯 Goalscorer wager", value: wagerPoints }] : []),
             ...(swapPenalty > 0 ? [{ label: "Swap penalty", value: -swapPenalty }] : []),
           ].map((r) => (
             <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--n8)" }}>

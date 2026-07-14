@@ -50,6 +50,7 @@ interface PointsBreakdown {
   progressionBonus: number;
   liveCheckpoint?: number;
   swapPenalty: number;
+  wager?: number;
   total: number;
 }
 
@@ -269,6 +270,7 @@ export default function HistoryClient({ predictions, profileName, backHref, nati
               { label: "Nation bonus", value: breakdown.nationBonus },
               { label: "Progression bonus", value: breakdown.progressionBonus },
               ...((breakdown.liveCheckpoint ?? 0) > 0 ? [{ label: "Live predictions", value: breakdown.liveCheckpoint as number }] : []),
+              ...((breakdown.wager ?? 0) !== 0 ? [{ label: "🎯 Goalscorer wager", value: breakdown.wager as number }] : []),
               ...(breakdown.swapPenalty > 0 ? [{ label: "Swap penalty", value: -breakdown.swapPenalty }] : []),
             ].map((r) => (
               <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid var(--n8)" }}>

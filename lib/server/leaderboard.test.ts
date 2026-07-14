@@ -82,6 +82,11 @@ describe("computeLeaderboard", () => {
         { league_member_id: "m2", points: 20 },
       ],
       swap_penalties: [{ league_member_id: "m1", amount: 5 }],
+      // Wagers are a meta-game — like progression/swap they must NOT appear in a
+      // per-round standing, only in the cumulative Overall.
+      goalscorer_wagers: [
+        { user_id: "u1", status: "won", stake: 10, payout: 15, matches: { kickoff_time: "2020-01-01T00:00:00Z" } },
+      ],
     });
 
     const rows = await computeLeaderboard(supabase, "league-1", null, "round-1");
@@ -89,10 +94,11 @@ describe("computeLeaderboard", () => {
     const u1 = rows.find((r) => r.user_id === "u1")!;
     const u2 = rows.find((r) => r.user_id === "u2")!;
     // Gross match points only: u1 = 10 + 3 = 13 (no +10 progression, no −5
-    // swap penalty) ; u2 = 5 (no +20 progression)
+    // swap penalty, no +5 wager) ; u2 = 5 (no +20 progression)
     expect(u1.progression_bonus).toBe(0);
     expect(u2.progression_bonus).toBe(0);
     expect(u1.swap_penalty).toBe(0);
+    expect(u1.wager_points).toBe(0);
     expect(u1.total_points).toBe(13);
     expect(u2.total_points).toBe(5);
   });

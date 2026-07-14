@@ -134,24 +134,32 @@ export async function computeLeaderboard(
                 .not("points", "is", null)
         )
       : emptyArr<{ user_id: string; points: number }>(),
-    // Goalscorer wagers — round-scoped by the match (like predictions). Net
-    // contribution is derived from settlement + lock state, not stored: won →
-    // payout-stake (+5), lost → -stake (-10), pending-but-kicked-off → -stake
-    // (committed, at risk), pending-pre-kickoff → 0 (still refundable).
-    fetchAll<{
-      user_id: string;
-      status: string;
-      stake: number;
-      payout: number;
-      matches: { kickoff_time: string } | { kickoff_time: string }[];
-    }>(() => {
-      let q = supabase
-        .from("goalscorer_wagers")
-        .select("user_id, status, stake, payout, matches!inner(round_id, kickoff_time)")
-        .eq("league_id", leagueId);
-      if (roundId) q = q.eq("matches.round_id", roundId);
-      return q;
-    }),
+    // Goalscorer wagers — OVERALL only, never in a per-round view. Like the
+    // progression bonus and swap penalty, a side-bet is a meta-game layered on
+    // top of the tournament; the per-round tabs stay "pure match-prediction
+    // performance". Net is derived from settlement + lock state, not stored:
+    // won → payout-stake (+5), lost → -stake (-10), pending-but-kicked-off →
+    // -stake (committed, at risk), pending-pre-kickoff → 0 (still refundable).
+    !roundId
+      ? fetchAll<{
+          user_id: string;
+          status: string;
+          stake: number;
+          payout: number;
+          matches: { kickoff_time: string } | { kickoff_time: string }[];
+        }>(() =>
+          supabase
+            .from("goalscorer_wagers")
+            .select("user_id, status, stake, payout, matches!inner(kickoff_time)")
+            .eq("league_id", leagueId)
+        )
+      : emptyArr<{
+          user_id: string;
+          status: string;
+          stake: number;
+          payout: number;
+          matches: { kickoff_time: string } | { kickoff_time: string }[];
+        }>(),
   ]);
 
   // Held primary per member: the latest re-draft holding if any, else the group
