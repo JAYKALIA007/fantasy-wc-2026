@@ -19,18 +19,20 @@ function normName(s: string): string {
 }
 
 // Reg + ET goalscorers credited to the scorer, for settling goalscorer wagers.
-// ESPN types in-play goals as "Goal" / "Goal - Header" / "Goal - Penalty" (an
-// in-play spot-kick counts) and shootout kicks as "Penalty - Scored" (excluded).
-// Own goals ("Own Goal") are excluded — they aren't credited to the picked
-// player. Returns raw ESPN displayNames; normalize at compare time.
+// Any play with scoringPlay:true resulted in a goal — "Goal", "Goal - Header",
+// or "Penalty - Scored" (ESPN types BOTH in-play spot-kicks AND shootout kicks
+// as "Penalty - Scored", so the type string can't distinguish them). The play's
+// own `shootout` boolean is the reliable discriminator: an in-play/ET penalty is
+// shootout:false (counts), a shootout kick is shootout:true (excluded). Own goals
+// ("Own Goal") aren't credited to the picked player. Raw displayNames out;
+// normalize at compare time.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function extractScorers(comp: any): string[] {
   const out: string[] = [];
   for (const p of comp.details ?? []) {
-    if (!p.scoringPlay) continue;
-    const t: string = p.type?.text ?? "";
-    if (!/^goal/i.test(t)) continue; // excludes "Penalty - Scored" (shootout kicks)
-    if (/own/i.test(t)) continue; // excludes own goals
+    if (!p.scoringPlay) continue; // only plays that produced a goal
+    if (p.shootout === true) continue; // exclude shootout kicks — reg + ET only
+    if (/own/i.test(p.type?.text ?? "")) continue; // own goals don't count for the pick
     for (const a of p.athletesInvolved ?? []) {
       if (a?.displayName) out.push(a.displayName as string);
     }
