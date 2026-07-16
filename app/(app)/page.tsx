@@ -140,44 +140,44 @@ export default async function HomePage() {
   const isCreator = leagueData?.creator_id === user.id;
   const adminUserId = leagueData?.creator_id as string | null;
 
-  // Knockout nudges: SF is the active round (SF re-draft + SF bracket). The QF
-  // and R16 brackets persist as read-only history cards.
-  const SF_ROUND_ID = "a0000000-0000-0000-0000-000000000005";
+  // Knockout nudges: the Final is the active round (Final re-draft + Final
+  // bracket = pick the champion). QF/R16/RO32/SF brackets persist as history.
+  const FINAL_ROUND_ID = ROUND_IDS.final;
 
   const { data: redraftWin } = await supabase
     .from("redraft_windows")
     .select("status, closes_at")
     .eq("league_id", leagueId)
-    .eq("round_id", SF_ROUND_ID)
+    .eq("round_id", FINAL_ROUND_ID)
     .maybeSingle();
   const redraftOpen =
     !!redraftWin &&
     redraftWin.status === "open" &&
     (!redraftWin.closes_at || new Date() < new Date(redraftWin.closes_at as string));
 
-  // SF bracket nudge — the 2 ties; locks at first SF kickoff − lead.
-  const { data: sfMatches } = await supabase
+  // Final bracket nudge — pick the champion (1 tie); locks at Final kickoff − lead.
+  const { data: finalMatches } = await supabase
     .from("matches")
     .select("id, kickoff_time")
-    .eq("round_id", SF_ROUND_ID)
+    .eq("round_id", FINAL_ROUND_ID)
     .order("kickoff_time", { ascending: true });
-  const sfMatchIds = (sfMatches ?? []).map((m) => m.id as number);
-  const sfTieCount = sfMatchIds.length;
-  const { count: myBracketCount } = sfMatchIds.length > 0
-    ? await supabase.from("ro32_bracket_picks").select("id", { count: "exact", head: true }).eq("league_id", leagueId).eq("user_id", user.id).in("match_id", sfMatchIds)
+  const finalMatchIds = (finalMatches ?? []).map((m) => m.id as number);
+  const finalTieCount = finalMatchIds.length;
+  const { count: myBracketCount } = finalMatchIds.length > 0
+    ? await supabase.from("ro32_bracket_picks").select("id", { count: "exact", head: true }).eq("league_id", leagueId).eq("user_id", user.id).in("match_id", finalMatchIds)
     : { count: 0 };
-  const bracketLockAt = sfMatches && sfMatches[0]
-    ? new Date(new Date(sfMatches[0].kickoff_time as string).getTime() - BRACKET_LOCK_LEAD_MS).toISOString()
+  const bracketLockAt = finalMatches && finalMatches[0]
+    ? new Date(new Date(finalMatches[0].kickoff_time as string).getTime() - BRACKET_LOCK_LEAD_MS).toISOString()
     : null;
   const bracketLocked = bracketLockAt ? new Date() >= new Date(bracketLockAt) : true;
   const myBracketPicks = myBracketCount ?? 0;
   const bracketShow = !!bracketLockAt && (!bracketLocked || myBracketPicks > 0);
-  const bracketTitle = bracketLocked ? "🏆 SF bracket results" : myBracketPicks === 0 ? "🏆 Submit your SF bracket" : myBracketPicks < sfTieCount ? "🏆 Finish your SF bracket" : "🏆 SF bracket saved";
+  const bracketTitle = bracketLocked ? "🏆 Final bracket result" : myBracketPicks === 0 ? "🏆 Pick the champion" : "🏆 Champion pick saved";
   const bracketSub = bracketLocked
-    ? "See how your SF picks are doing"
-    : myBracketPicks < sfTieCount
-      ? `Pick who advances in all ${sfTieCount} ties${bracketLockAt ? ` · locks ${toISTWithDay(bracketLockAt)}` : ""}`
-      : `All ${sfTieCount} picked · edit anytime before lock${bracketLockAt ? ` (${toISTWithDay(bracketLockAt)})` : ""}`;
+    ? "See if you called the winner"
+    : myBracketPicks < finalTieCount
+      ? `Pick who lifts the trophy${bracketLockAt ? ` · locks ${toISTWithDay(bracketLockAt)}` : ""}`
+      : `Picked · edit anytime before lock${bracketLockAt ? ` (${toISTWithDay(bracketLockAt)})` : ""}`;
 
   // Goalscorer wager nudge — shown while any SF/final/bronze fixture is still
   // open (not yet kicked off). Optional feature, so a gentle persistent chip.
@@ -467,7 +467,7 @@ export default async function HomePage() {
                 🔄 Re-draft open
               </div>
               <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 13, color: "var(--g2)", marginTop: 3, lineHeight: 1.4 }}>
-                Pick your Semi-final team{redraftWin?.closes_at ? ` · closes ${toISTWithDay(redraftWin.closes_at as string)}` : ""}
+                Pick your Final team{redraftWin?.closes_at ? ` · closes ${toISTWithDay(redraftWin.closes_at as string)}` : ""}
               </div>
             </div>
             <span style={{ color: "var(--g3)", fontSize: 22, flexShrink: 0 }}>›</span>
@@ -1268,6 +1268,7 @@ export default async function HomePage() {
         {/* Every completed round's bracket, newest first — nothing rolls off. Add
             the newly-finished round to the front here at each rollout. */}
         {showHistory && ([
+          { round: "sf", label: "SF bracket", sub: "Your Semi-final picks & results" },
           { round: "qf", label: "QF bracket", sub: "Your Quarter-final picks & results" },
           { round: "r16", label: "RO16 bracket", sub: "Your Round of 16 picks & results" },
           { round: "ro32", label: "RO32 bracket", sub: "Your Round of 32 picks & results" },
