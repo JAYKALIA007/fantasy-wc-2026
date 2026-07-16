@@ -83,9 +83,20 @@ applies.
 | Reach RO16 | **+10** |
 | Reach QF | **+20** |
 | Reach SF | **+30** |
-| Win Bronze Final | **+35** |
-| Reach Final (runner-up) | **+40** |
-| Win the tournament | **+50** |
+| Bronze Final win (3rd place) | **+35** |
+| Runner-up (lose the Final) | **+40** |
+| Win the tournament (champion) | **+50** |
+
+> **Reach-based vs placement-based.** RO32 → SF are **reach** milestones: every
+> team that advances to the round earns it, *including the ones that then lose in
+> it* (all 4 semi-finalists got reach-SF +30). The ladder **stops reaching at SF**.
+> The last four prizes are **placement** prizes decided by the Final and Bronze
+> results, and they are **mutually exclusive** — there is **no "reach Final"
+> award, so both finalists do NOT get +40**. The losing finalist gets +40, the
+> champion gets +50 (instead of, not on top of, +40), the Bronze winner gets +35,
+> and the Bronze loser gets nothing beyond the reach-SF +30 already banked. None
+> can be awarded until the respective match is played. This matches the
+> user-facing `/rules` page, which is the source of truth.
 
 Multipliers: **primary 1×, secondary 2×** (clean 2× across all milestones —
 RO32 is +3/+6, RO16 is +10/+20, etc.). A secondary earns exactly two things over
@@ -108,9 +119,9 @@ The swap penalty is the only cost; there is no clawback of past points.
 | **During RO32** | primary + secondary | — | reach-RO16: primary +10, secondary +20 (2×) |
 | **RO32 → RO16** (collapse) | → one team (pick if both survive) | free (forced) | secondary +20 farewell, then dissolves |
 | **RO16 → QF** | one team | −10 | reach-QF +20 |
-| **QF → SF** | one team | −15 | reach-SF +30 |
-| **SF → Final** | one team | −20 | reach-Final +40 |
-| **Final** | one team | −25 | Win +50 |
+| **QF → SF** | one team | −15 | reach-SF +30 (last reach milestone) |
+| **SF → Final** | one team | −20 | — (placement prizes settle after the matches) |
+| **Final + Bronze** | one team | −25 (Final) | Win +50 / Runner-up +40 / Bronze-win +35 (placement) |
 
 ---
 
@@ -124,16 +135,25 @@ route calls). Repeat this at each round boundary once results are in:
 |---|---|---|---|
 | reach-RO32 | `024` ✅ | primary +3 / secondary +6 | onboarding picks (`league_members`) |
 | reach-RO16 | `029` ✅ | primary +10 / secondary +20 (farewell) | RO32-held teams (`member_round_teams` @ ro32, else onboarding) |
-| reach-QF | **TODO** | +20 | R16-held single team |
-| reach-SF | **TODO** | +30 | QF-held single team |
-| win-bronze | **TODO** | +35 | — |
-| reach-Final | **TODO** | +40 | SF-held single team |
-| win | **TODO** | +50 | Final-held single team |
+| reach-QF | `031` ✅ | +20 | R16-held single team |
+| reach-SF | `033` ✅ | +30 | QF-held single team |
+| win-bronze | **TODO** | +35 | Bronze-held team that **won** the 3rd-place match |
+| runner-up | **TODO** | +40 | Final-held team that **lost** the Final |
+| win | **TODO** | +50 | Final-held team that **won** the Final |
 
 From RO16 on it is **one team** (the collapse), so **QF onward is primary-only —
-no secondary rows**. "Reached round X" = the held team's `nations.eliminated =
-false` at that boundary. Always `on conflict (league_member_id, milestone,
-nation_id) do nothing` for idempotency. **⚠️ Don't forget reach-QF after the RO16 ties.**
+no secondary rows**. Always `on conflict (league_member_id, milestone, nation_id)
+do nothing` for idempotency.
+
+Two scoring modes:
+- **Reach milestones (RO32 → SF):** "reached round X" = the held team's
+  `nations.eliminated = false` at that boundary. Inclusive — a team that loses in
+  round X still reached it.
+- **Placement prizes (win-bronze / runner-up / win):** NOT reach-based and NOT
+  `eliminated = false`. Scored against the **specific match result** — the held
+  team must be the winner (win, win-bronze) or the loser (runner-up) of that exact
+  fixture. There is **no reach-Final award**, so the two finalists split +50 / +40
+  by result; they do not both get +40.
 
 ---
 
