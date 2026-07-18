@@ -137,9 +137,16 @@ route calls). Repeat this at each round boundary once results are in:
 | reach-RO16 | `029` ✅ | primary +10 / secondary +20 (farewell) | RO32-held teams (`member_round_teams` @ ro32, else onboarding) |
 | reach-QF | `031` ✅ | +20 | R16-held single team |
 | reach-SF | `033` ✅ | +30 | QF-held single team |
-| win-bronze | **TODO** | +35 | Bronze-held team that **won** the 3rd-place match |
-| runner-up | **TODO** | +40 | Final-held team that **lost** the Final |
-| win | **TODO** | +50 | Final-held team that **won** the Final |
+| bronze (win-bronze) | `038` ✅ | +35 | Bronze-held team that **won** the 3rd-place match |
+| final (runner-up) | **TODO** | +40 | Final-held team that **lost** the Final |
+| win (champion) | **TODO** | +50 | Final-held team that **won** the Final |
+
+> ⚠️ **DB milestone strings.** The `progression_bonus_points.milestone` CHECK
+> constraint only allows `ro32 · r16 · qf · sf · bronze · final · win`. So the
+> placement rows insert as `milestone = 'bronze'` (+35), `'final'` (+40,
+> runner-up), `'win'` (+50, champion) — NOT `win-bronze` / `runner-up`, which
+> violate the constraint. `'final'` here means the runner-up prize, not "reached
+> the final" — only the losing finalist gets it; the champion gets `'win'`.
 
 From RO16 on it is **one team** (the collapse), so **QF onward is primary-only —
 no secondary rows**. Always `on conflict (league_member_id, milestone, nation_id)
