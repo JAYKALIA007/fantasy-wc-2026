@@ -60,7 +60,12 @@ const ROUND_ELIM_TAG: Record<string, string> = {
   "a0000000-0000-0000-0000-000000000004": "qf",
   "a0000000-0000-0000-0000-000000000005": "sf",
   "a0000000-0000-0000-0000-000000000006": "final",
-  "a0000000-0000-0000-0000-000000000008": "bronze",
+  // NB: no 'bronze'. The bronze final is a PLACEMENT match — both teams were
+  // already eliminated at the SF. Tagging its loser would OVERWRITE their 'sf'
+  // elimination (and resetting its winner would CLEAR it), which breaks the SF
+  // bracket's advancer resolution (it reads eliminated_in_round = 'sf'). Bronze
+  // placement is derived from the match score in the progression migration, not
+  // from this tag, so the bronze match must not touch elimination state at all.
 };
 
 const RO16_ROUND_ID = "a0000000-0000-0000-0000-000000000002";

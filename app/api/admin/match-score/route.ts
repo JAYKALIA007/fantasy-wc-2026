@@ -15,6 +15,10 @@ const ROUND_ELIM_TAG: Record<string, string> = {
   "a0000000-0000-0000-0000-000000000004": "qf",
   "a0000000-0000-0000-0000-000000000005": "sf",
   "a0000000-0000-0000-0000-000000000006": "final",
+  // Intentionally NO 'bronze': the 3rd-place match is a placement game between two
+  // already-eliminated SF losers. Tagging it would overwrite their 'sf' tag and
+  // break the SF bracket's advancer resolution. Bronze placement comes from the
+  // score in the progression migration, not this tag. (Mirrors the edge fn.)
 };
 
 export async function POST(request: Request) {
