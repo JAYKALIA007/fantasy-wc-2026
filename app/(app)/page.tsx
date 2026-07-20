@@ -9,6 +9,7 @@ import { FLAG_EMOJI } from "@/lib/utils/flags";
 import { toIST, toISTWithDay } from "@/lib/utils/date";
 import type { Nation } from "@/lib/types";
 import { computeLeaderboard } from "@/lib/server/leaderboard";
+import { computeSeasonAwards, type SeasonAward } from "@/lib/server/awards";
 import { BRACKET_LOCK_LEAD_MS, ROUND_IDS } from "@/lib/constants";
 
 interface Match {
@@ -338,6 +339,7 @@ export default async function HomePage() {
       champNationName = (cn?.name as string | undefined) ?? null;
     }
   }
+  const seasonAwards: SeasonAward[] = tournamentOver ? await computeSeasonAwards(supabase, leagueId, adminUserId) : [];
 
   // Avatar
   type AvatarFields = { initials: string; position: string; card_type: string; rating: number; footballer_name: string; nation: string };
@@ -502,6 +504,33 @@ export default async function HomePage() {
               Fantasy WC 2026 · complete{wcChampionName ? ` · ${FLAG_EMOJI[wcChampionName] ?? "🏆"} ${wcChampionName} won the World Cup` : ""}
             </span>
           </Link>
+        )}
+        {/* Season awards — end-of-tournament superlatives to share. */}
+        {seasonAwards.length > 0 && (
+          <div style={{ background: "var(--surf)", borderRadius: 16, padding: "16px 16px 8px", boxShadow: "var(--sh-md)" }}>
+            <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 13, color: "var(--n0)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>
+              🏅 Season Awards
+            </div>
+            {seasonAwards.map((a, i) => (
+              <div
+                key={a.title}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12, padding: "10px 0",
+                  borderBottom: i < seasonAwards.length - 1 ? "1px solid var(--n8)" : "none",
+                }}
+              >
+                <span style={{ fontSize: 26, flexShrink: 0, width: 32, textAlign: "center" }}>{a.emoji}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 14, color: "var(--n0)" }}>{a.title}</div>
+                  <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n5)" }}>{a.sub}</div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 13, color: "var(--g2)" }}>{a.winners}</div>
+                  <div style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 11, color: "var(--n5)" }}>{a.stat}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
         {/* SF re-draft nudge */}
         {redraftOpen && (
