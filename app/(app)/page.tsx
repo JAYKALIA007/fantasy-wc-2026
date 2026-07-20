@@ -1268,6 +1268,7 @@ export default async function HomePage() {
         {/* Every completed round's bracket, newest first — nothing rolls off. Add
             the newly-finished round to the front here at each rollout. */}
         {showHistory && ([
+          { round: "final", label: "Final bracket", sub: "Your champion pick & the result" },
           { round: "sf", label: "SF bracket", sub: "Your Semi-final picks & results" },
           { round: "qf", label: "QF bracket", sub: "Your Quarter-final picks & results" },
           { round: "r16", label: "RO16 bracket", sub: "Your Round of 16 picks & results" },
