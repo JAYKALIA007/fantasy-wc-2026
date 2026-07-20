@@ -317,6 +317,28 @@ export default async function HomePage() {
 
   const top5 = leaderboardRows.slice(0, 5);
 
+  // Champion banner: once the Final is played, the tournament is over — crown the
+  // league winner (leaderboard #1) and show who lifted the World Cup.
+  const { data: finalMatchRow } = await supabase
+    .from("matches")
+    .select("home_score, away_score, home_nation:home_nation_id(name), away_nation:away_nation_id(name)")
+    .eq("round_id", ROUND_IDS.final)
+    .eq("status", "finished")
+    .maybeSingle();
+  const tournamentOver = !!finalMatchRow;
+  const leagueChampion = tournamentOver ? leaderboardRows[0] : null;
+  let wcChampionName: string | null = null;
+  let champNationName: string | null = null;
+  if (finalMatchRow) {
+    const hn = (Array.isArray(finalMatchRow.home_nation) ? finalMatchRow.home_nation[0] : finalMatchRow.home_nation) as { name: string } | null;
+    const an = (Array.isArray(finalMatchRow.away_nation) ? finalMatchRow.away_nation[0] : finalMatchRow.away_nation) as { name: string } | null;
+    wcChampionName = ((finalMatchRow.home_score as number) > (finalMatchRow.away_score as number) ? hn : an)?.name ?? null;
+    if (leagueChampion?.primary_nation_id != null) {
+      const { data: cn } = await supabase.from("nations").select("name").eq("id", leagueChampion.primary_nation_id).maybeSingle();
+      champNationName = (cn?.name as string | undefined) ?? null;
+    }
+  }
+
   // Avatar
   type AvatarFields = { initials: string; position: string; card_type: string; rating: number; footballer_name: string; nation: string };
   const avatarRaw = membership.avatars as unknown;
@@ -452,6 +474,35 @@ export default async function HomePage() {
       </div>
 
       <div style={{ padding: "16px 16px 80px", display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* Champion banner — the tournament is over; crown the league winner. */}
+        {leagueChampion && (
+          <Link
+            href="/ranks"
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+              background: "linear-gradient(160deg, #fde68a 0%, #f5b50a 55%, #d99400 100%)",
+              border: "2px solid #b8860b", borderRadius: 18, padding: "20px 16px 18px",
+              textDecoration: "none", boxShadow: "0 6px 20px rgba(217,148,0,0.35)", textAlign: "center",
+            }}
+          >
+            <span style={{ fontSize: 46, lineHeight: 1 }}>🏆</span>
+            <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 800, fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "#7a5200" }}>
+              League Champion
+            </span>
+            <span style={{ fontFamily: "var(--font-anton), sans-serif", fontSize: 30, color: "#3d2a00", letterSpacing: 0.5, lineHeight: 1.1 }}>
+              {leagueChampion.profile_name}
+              {leagueChampion.user_id === user.id && (
+                <span style={{ fontFamily: "var(--font-saira), sans-serif", fontSize: 12, fontWeight: 800, letterSpacing: 1, marginLeft: 8, color: "#7a5200" }}>YOU 🎉</span>
+              )}
+            </span>
+            <span style={{ fontFamily: "var(--font-saira), sans-serif", fontWeight: 700, fontSize: 15, color: "#5c3f00" }}>
+              {champNationName ? `${FLAG_EMOJI[champNationName] ?? ""} ` : ""}{leagueChampion.total_points} pts
+            </span>
+            <span style={{ fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "#6b4a00", marginTop: 4 }}>
+              Fantasy WC 2026 · complete{wcChampionName ? ` · ${FLAG_EMOJI[wcChampionName] ?? "🏆"} ${wcChampionName} won the World Cup` : ""}
+            </span>
+          </Link>
+        )}
         {/* SF re-draft nudge */}
         {redraftOpen && (
           <Link
